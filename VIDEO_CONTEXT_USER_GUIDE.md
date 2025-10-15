@@ -8,10 +8,10 @@ A button that appears in the annotation interface when your current image has a 
 ### When does it appear?
 The play button (▶) appears when:
 1. Your current frame/image has related files
-2. One of those files is a video with the same base name as the image
+2. One of those files is a video with the same base name as the image (or a hidden file with the same name)
 
 ### Example
-If you're annotating `car_scene_001.jpg` and there's a `car_scene_001.mp4` in the related files, you'll see the play button.
+If you're annotating `car_scene_001.jpg` and there's a `car_scene_001.mp4` or `.car_scene_001.mp4` in the related files, you'll see the play button.
 
 ## How to Use
 
@@ -22,7 +22,7 @@ my_dataset/
   ├── frame_001.jpg
   ├── frame_001.mp4    ← Same base name as image
   ├── frame_002.jpg
-  ├── frame_002.mp4
+  ├── .frame_002.mp4   ← Hidden file with same name (also supported)
   └── ...
 ```
 
@@ -55,9 +55,11 @@ my_dataset/
 ## Tips & Tricks
 
 ### Naming Convention
-The base name must match exactly:
+The base name must match exactly, or be a hidden file (preceded by a dot) with the same name:
 - ✅ `image_01.jpg` + `image_01.mp4` → Button appears
+- ✅ `image_01.jpg` + `.image_01.mp4` → Button appears (hidden file)
 - ✅ `IMG_2024.png` + `IMG_2024.avi` → Button appears
+- ✅ `IMG_2024.png` + `.IMG_2024.avi` → Button appears (hidden file)
 - ❌ `image_01.jpg` + `video_01.mp4` → No button (names don't match)
 - ❌ `image.jpg` + `image2.mp4` → No button (names don't match)
 

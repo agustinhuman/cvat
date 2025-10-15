@@ -40,9 +40,26 @@ function VideoContextButton(props: Props): JSX.Element | null {
                     const baseFrameName = getBaseNameWithoutExtension(frameFilename);
                     
                     // Find a video file with the same base name as the current frame
+                    // Also match hidden files (preceded by a dot) with the same name
                     const matchingVideo = files.find((file) => {
                         const baseFileName = getBaseNameWithoutExtension(file);
-                        return isVideoFile(file) && baseFileName === baseFrameName;
+                        
+                        // Check if it's a video file
+                        if (!isVideoFile(file)) {
+                            return false;
+                        }
+                        
+                        // Match exact base name (e.g., frame_001.jpg -> frame_001.mp4)
+                        if (baseFileName === baseFrameName) {
+                            return true;
+                        }
+                        
+                        // Match hidden file with same name (e.g., frame_001.jpg -> .frame_001.mp4)
+                        if (baseFileName.startsWith('.') && baseFileName.substring(1) === baseFrameName) {
+                            return true;
+                        }
+                        
+                        return false;
                     });
 
                     if (matchingVideo) {

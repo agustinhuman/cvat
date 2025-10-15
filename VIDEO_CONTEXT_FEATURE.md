@@ -6,7 +6,7 @@ This feature adds a UI button in the annotation interface that allows users to p
 
 ## Requirements
 
-The task mentions that sometimes labeling an image requires seeing context in the form of a small video. If an image being annotated has a video in the same folder with the same name (but different extension), a button should appear that plays that video.
+The task mentions that sometimes labeling an image requires seeing context in the form of a small video. If an image being annotated has a video in the same folder with the same name (but different extension) or as a hidden file with the same name (preceded by a dot), a button should appear that plays that video.
 
 ## Implementation
 
@@ -56,8 +56,8 @@ Two new data types were added to the existing `/jobs/{id}/data` and `/tasks/{id}
 
 2. If related files exist, it fetches the list of file names using `getRelatedFiles()`
 
-3. The component looks for a video file (based on VIDEO_EXTENSIONS) that has the same base name as the current frame image
-   - Example: If current frame is `image_001.jpg`, it looks for videos like `image_001.mp4`, `image_001.avi`, etc.
+3. The component looks for a video file (based on VIDEO_EXTENSIONS) that has the same base name as the current frame image, or a hidden file (preceded by a dot) with the same name
+   - Example: If current frame is `image_001.jpg`, it looks for videos like `image_001.mp4`, `image_001.avi`, `.image_001.mp4`, etc.
 
 4. If a matching video is found:
    - A blue play button icon appears next to the player controls in the top bar
@@ -83,7 +83,7 @@ The following video file extensions are supported:
 ## Usage Example
 
 1. Upload a task with images and related video files in the same folder
-2. Ensure videos have the same base name as the images (e.g., `frame_01.jpg` and `frame_01.mp4`)
+2. Ensure videos have the same base name as the images (e.g., `frame_01.jpg` and `frame_01.mp4`) or are hidden files with the same name (e.g., `frame_01.jpg` and `.frame_01.mp4`)
 3. Open the annotation interface for the task
 4. Navigate to a frame that has a matching video
 5. A blue play button will appear in the top bar
