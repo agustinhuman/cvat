@@ -528,9 +528,10 @@ class ProjectViewSet(viewsets.GenericViewSet, mixins.ListModelMixin,
 
 class _DataGetter(metaclass=ABCMeta):
     def __init__(
-        self, data_type: str, data_num: Optional[Union[str, int]], data_quality: str
+        self, data_type: str, data_num: Optional[Union[str, int]], data_quality: str,
+        file_name: Optional[str] = None
     ) -> None:
-        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image', 'related_files')
+        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image', 'related_files', 'related_file')
         possible_quality_values = ('compressed', 'original')
 
         if not data_type or data_type not in possible_data_type_values:
@@ -543,11 +544,17 @@ class _DataGetter(metaclass=ABCMeta):
         elif data_type == 'related_files':
             if data_num is None:
                 raise ValidationError('Number is not specified for related_files')
+        elif data_type == 'related_file':
+            if data_num is None:
+                raise ValidationError('Number is not specified for related_file')
+            if not file_name:
+                raise ValidationError('File name is required for related_file')
 
         self.type = data_type
         self.number = int(data_num) if data_num is not None else None
         self.quality = FrameQuality.COMPRESSED \
             if data_quality == 'compressed' else FrameQuality.ORIGINAL
+        self.file_name = file_name
 
     @abstractmethod
     def _get_frame_provider(self) -> IFrameProvider: ...
@@ -598,6 +605,34 @@ class _DataGetter(metaclass=ABCMeta):
                 # Extract just the filenames from paths
                 file_names = [osp.basename(str(path)) for path in db_related_files]
                 return HttpResponse(json.dumps(file_names), content_type='application/json')
+            elif self.type == 'related_file':
+                # Get a specific related file by name
+                if not hasattr(self, 'file_name') or not self.file_name:
+                    return Response(data='File name not specified for related_file',
+                        status=status.HTTP_400_BAD_REQUEST)
+                
+                db_data = self._get_db_data()
+                ThroughModel = models.RelatedFile.images.through
+                
+                # Find the related file
+                related_file = ThroughModel.objects.filter(
+                    relatedfile__data=db_data,
+                    image__frame=self.number
+                ).select_related('relatedfile').first()
+                
+                if related_file:
+                    for rf_obj in ThroughModel.objects.filter(
+                        relatedfile__data=db_data,
+                        image__frame=self.number
+                    ).select_related('relatedfile'):
+                        file_path = str(rf_obj.relatedfile.path)
+                        if osp.basename(file_path) == self.file_name:
+                            # Return the file
+                            mime_type = get_mime(file_path)
+                            with open(file_path, 'rb') as f:
+                                return HttpResponse(f.read(), content_type=mime_type)
+                
+                return HttpResponseNotFound()
             else:
                 return Response(data='unknown data type {}.'.format(self.type),
                     status=status.HTTP_400_BAD_REQUEST)
@@ -646,8 +681,9 @@ class _TaskDataGetter(_DataGetter):
         data_type: str,
         data_quality: str,
         data_num: Optional[Union[str, int]] = None,
+        file_name: Optional[str] = None,
     ) -> None:
-        super().__init__(data_type=data_type, data_num=data_num, data_quality=data_quality)
+        super().__init__(data_type=data_type, data_num=data_num, data_quality=data_quality, file_name=file_name)
         self._db_task = db_task
 
     def _get_frame_provider(self) -> TaskFrameProvider:
@@ -671,8 +707,9 @@ class _JobDataGetter(_DataGetter):
         data_quality: str,
         data_num: Optional[Union[str, int]] = None,
         data_index: Optional[Union[str, int]] = None,
+        file_name: Optional[str] = None,
     ) -> None:
-        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image', 'related_files')
+        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image', 'related_files', 'related_file')
         possible_quality_values = ('compressed', 'original')
 
         if not data_type or data_type not in possible_data_type_values:
@@ -690,6 +727,11 @@ class _JobDataGetter(_DataGetter):
         elif data_type == 'related_files':
             if data_num is None:
                 raise ValidationError('Number is not specified for related_files')
+        elif data_type == 'related_file':
+            if data_num is None:
+                raise ValidationError('Number is not specified for related_file')
+            if not file_name:
+                raise ValidationError('File name is required for related_file')
 
         self.type = data_type
 
@@ -698,6 +740,8 @@ class _JobDataGetter(_DataGetter):
 
         self.quality = FrameQuality.COMPRESSED \
             if data_quality == 'compressed' else FrameQuality.ORIGINAL
+        
+        self.file_name = file_name
 
         self._db_job = db_job
 
@@ -1315,9 +1359,10 @@ class TaskViewSet(viewsets.GenericViewSet, mixins.ListModelMixin,
             data_type = request.query_params.get('type', None)
             data_num = request.query_params.get('number', None)
             data_quality = request.query_params.get('quality', 'compressed')
+            file_name = request.query_params.get('filename', None)
 
             data_getter = _TaskDataGetter(
-                self._object, data_type=data_type, data_num=data_num, data_quality=data_quality
+                self._object, data_type=data_type, data_num=data_num, data_quality=data_quality, file_name=file_name
             )
             return data_getter()
 
@@ -1954,11 +1999,12 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
         data_num = request.query_params.get('number', None)
         data_index = request.query_params.get('index', None)
         data_quality = request.query_params.get('quality', 'compressed')
+        file_name = request.query_params.get('filename', None)
 
         data_getter = _JobDataGetter(
             db_job,
             data_type=data_type, data_quality=data_quality,
-            data_index=data_index, data_num=data_num
+            data_index=data_index, data_num=data_num, file_name=file_name
         )
         return data_getter()
 

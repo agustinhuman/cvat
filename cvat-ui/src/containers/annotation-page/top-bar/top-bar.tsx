@@ -50,6 +50,7 @@ interface StateToProps {
     frameIsDeleted: boolean;
     frameNumber: number;
     frameFilename: string;
+    frameRelatedFiles: number;
     frameStep: number;
     frameSpeed: FrameSpeed;
     frameDelay: number;
@@ -114,6 +115,7 @@ function mapStateToProps(state: CombinedState): StateToProps {
                     number: frameNumber,
                     delay: frameDelay,
                     fetching: frameFetching,
+                    relatedFiles: frameRelatedFiles,
                 },
                 navigationType,
             },
@@ -156,6 +158,7 @@ function mapStateToProps(state: CombinedState): StateToProps {
         saving,
         frameNumber,
         frameFilename,
+        frameRelatedFiles,
         jobInstance: jobInstance as Job,
         undoAction: history.undo.length ? history.undo[history.undo.length - 1][0] : undefined,
         redoAction: history.redo.length ? history.redo[history.redo.length - 1][0] : undefined,

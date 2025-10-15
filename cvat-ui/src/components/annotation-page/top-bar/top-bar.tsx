@@ -15,6 +15,7 @@ import LeftGroup from './left-group';
 import PlayerButtons from './player-buttons';
 import PlayerNavigation from './player-navigation';
 import RightGroup from './right-group';
+import VideoContextButton from './video-context-button';
 
 interface Props {
     playing: boolean;
@@ -22,6 +23,7 @@ interface Props {
     frameNumber: number;
     frameFilename: string;
     frameDeleted: boolean;
+    frameRelatedFiles: number;
     inputFrameRef: React.RefObject<HTMLInputElement>;
     startFrame: number;
     stopFrame: number;
@@ -85,6 +87,7 @@ export default function AnnotationTopBarComponent(props: Props): JSX.Element {
         frameNumber,
         frameFilename,
         frameDeleted,
+        frameRelatedFiles,
         inputFrameRef,
         startFrame,
         stopFrame,
@@ -188,6 +191,16 @@ export default function AnnotationTopBarComponent(props: Props): JSX.Element {
             showSearchFrameByName={showSearchFrameByName}
         />
     ), 10]);
+
+    playerItems.push([(
+        <VideoContextButton
+            key='video_context_button'
+            frameNumber={frameNumber}
+            frameFilename={frameFilename}
+            frameRelatedFiles={frameRelatedFiles}
+            jobID={jobInstance.id}
+        />
+    ), 5]);
 
     return (
         <Row justify='space-between'>
