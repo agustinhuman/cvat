@@ -55,20 +55,3 @@ export function getContentTypeRemoteFile(url: string): 'image' | 'video' | 'unkn
 export function getFileNameFromPath(path: string): string {
     return path.split('/').filter(Boolean).pop()?.split(/[#?]/)?.[0] || '';
 }
-
-export function isVideoFile(filename: string): boolean {
-    const extension = (filename.split('.').pop()?.trim() || '').toLowerCase();
-    return VIDEO_EXTENSIONS.includes(extension);
-}
-
-export function getFileExtension(filename: string): string {
-    return (filename.split('.').pop()?.trim() || '').toLowerCase();
-}
-
-export function getBaseNameWithoutExtension(filename: string): string {
-    const parts = filename.split('.');
-    if (parts.length > 1) {
-        parts.pop();
-    }
-    return parts.join('.');
-}
