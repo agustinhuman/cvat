@@ -81,7 +81,8 @@ def is_point_cloud(media_file: str) -> bool:
 
 def _prepare_context_list(files: Iterable[str], base_dir: Optional[str] = None):
     return sorted(
-        os.path.relpath(x, base_dir) if base_dir is not None else x for x in filter(is_image, files)
+        os.path.relpath(x, base_dir) if base_dir is not None else x 
+        for x in files if is_image(x) or is_video(x)
     )
 
 
@@ -99,10 +100,22 @@ def _find_related_images_2D(
         00001_png/
           context_image_1.jpeg
           context_image_2.png
+    
+    Also supports video context files with matching names:
+      - Same folder with matching base name: image.jpg -> image.mp4
+      - Hidden files with dot prefix: image.jpg -> .image.mp4
+      - .context/ or context/ subfolders: image.jpg -> .context/image.mp4
     """
 
     regular_images = set()
     related_images = {}
+    
+    # Group files by their directory for easier lookup
+    files_by_dir = {}
+    for file_path in dataset_paths:
+        dir_path = str(Path(file_path).parent)
+        files_by_dir.setdefault(dir_path, []).append(file_path)
+    
     for image_path in dataset_paths:
         parents = Path(image_path).parents
         if len(parents) >= 3 and parents[1].name == "related_images":
@@ -115,6 +128,29 @@ def _find_related_images_2D(
             or image_path in scene_paths
         ):
             regular_images.add(image_path)
+            
+            # Find matching video files for this image
+            image_path_obj = Path(image_path)
+            image_dir = str(image_path_obj.parent)
+            image_stem = image_path_obj.stem  # filename without extension
+            
+            # Check same folder for matching videos
+            for file_path in files_by_dir.get(image_dir, []):
+                if is_video(file_path):
+                    file_stem = Path(file_path).stem
+                    # Match exact base name or hidden file with same name
+                    if file_stem == image_stem or file_stem == f".{image_stem}":
+                        related_images.setdefault(image_path, []).append(file_path)
+            
+            # Check .context and context subfolders
+            for context_folder in [".context", "context"]:
+                context_dir = str(image_path_obj.parent / context_folder)
+                for file_path in files_by_dir.get(context_dir, []):
+                    if is_video(file_path):
+                        file_stem = Path(file_path).stem
+                        # Match exact base name or hidden file with same name
+                        if file_stem == image_stem or file_stem == f".{image_stem}":
+                            related_images.setdefault(image_path, []).append(file_path)
 
     related_images = {
         image_path: _prepare_context_list(image_related)
