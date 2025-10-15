@@ -1540,6 +1540,44 @@ async function getImageContext(jid: number, frame: number): Promise<ArrayBuffer>
     }
 }
 
+async function getRelatedFiles(jid: number, frame: number): Promise<string[]> {
+    const { backendAPI } = config;
+
+    try {
+        const response = await Axios.get(`${backendAPI}/jobs/${jid}/data`, {
+            params: {
+                quality: 'original',
+                type: 'related_files',
+                number: frame,
+            },
+        });
+
+        return response.data;
+    } catch (errorData) {
+        throw generateError(errorData);
+    }
+}
+
+async function getRelatedFile(jid: number, frame: number, filename: string): Promise<Blob> {
+    const { backendAPI } = config;
+
+    try {
+        const response = await Axios.get(`${backendAPI}/jobs/${jid}/data`, {
+            params: {
+                quality: 'original',
+                type: 'related_file',
+                number: frame,
+                filename,
+            },
+            responseType: 'blob',
+        });
+
+        return response.data;
+    } catch (errorData) {
+        throw generateError(errorData);
+    }
+}
+
 async function getData(jid: number, chunk: number, quality: ChunkQuality, retry = 0): Promise<ArrayBuffer> {
     const { backendAPI } = config;
 
@@ -2481,6 +2519,8 @@ export default Object.freeze({
         saveMeta,
         getPreview,
         getImageContext,
+        getRelatedFiles,
+        getRelatedFile,
     }),
 
     annotations: Object.freeze({
