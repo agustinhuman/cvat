@@ -369,11 +369,19 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                                 return;
                             }
 
-                            // Add context video view
+                            // Create new video view similar to how related images are added
+                            const canvasView = layoutConfig.find((item: ItemLayout) => 
+                                item.viewType === ViewType.CANVAS || item.viewType === ViewType.CANVAS_3D
+                            );
+
+                            if (!canvasView) {
+                                return;
+                            }
+
                             const newVideoView: ItemLayout = {
                                 viewType: ViewType.CONTEXT_VIDEO,
                                 offset: [0, 0],
-                                x: 9,
+                                x: canvasView.w,
                                 y: 0,
                                 w: 3,
                                 h: config.CANVAS_WORKSPACE_DEFAULT_CONTEXT_HEIGHT,

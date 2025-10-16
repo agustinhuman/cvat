@@ -1544,13 +1544,13 @@ async function getContextVideoURL(jid: number, frame: number): Promise<string | 
     const { backendAPI } = config;
 
     try {
-        const response = await Axios.get(`${backendAPI}/jobs/${jid}/data`, {
+        // Use HEAD request to check if video exists without downloading it
+        const response = await Axios.head(`${backendAPI}/jobs/${jid}/data`, {
             params: {
                 quality: 'original',
                 type: 'context_video',
                 number: frame,
             },
-            responseType: 'blob',
         });
 
         // If we got a response, the video exists, return the URL
