@@ -17,6 +17,7 @@ import {
     FullscreenExitOutlined,
     FullscreenOutlined,
     PicCenterOutlined,
+    PlayCircleOutlined,
     PlusOutlined,
     ReloadOutlined,
 } from '@ant-design/icons';
@@ -353,6 +354,33 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                             const latest = existingRelated[existingRelated.length - 1];
                             const copy = { ...latest, offset: [0, viewIndex], viewIndex: `${viewIndex}` };
                             setLayoutConfig(fitLayout(type as DimensionType, [...layoutConfig, copy]));
+                            window.dispatchEvent(new Event('resize'));
+                        }}
+                    />
+                </CVATTooltip>
+                <CVATTooltip title='Add context video'>
+                    <PlayCircleOutlined
+                        onClick={() => {
+                            const MAXIMUM_VIDEOS = 1; // Usually one context video per frame
+                            const existingVideos = layoutConfig
+                                .filter((configItem: ItemLayout) => configItem.viewType === ViewType.CONTEXT_VIDEO);
+
+                            if (existingVideos.length >= MAXIMUM_VIDEOS) {
+                                return;
+                            }
+
+                            // Add context video view
+                            const newVideoView: ItemLayout = {
+                                viewType: ViewType.CONTEXT_VIDEO,
+                                offset: [0, 0],
+                                x: 9,
+                                y: 0,
+                                w: 3,
+                                h: config.CANVAS_WORKSPACE_DEFAULT_CONTEXT_HEIGHT,
+                                viewIndex: '0',
+                            };
+
+                            setLayoutConfig(fitLayout(type as DimensionType, [...layoutConfig, newVideoView]));
                             window.dispatchEvent(new Event('resize'));
                         }}
                     />
