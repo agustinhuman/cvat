@@ -272,6 +272,14 @@ function buildDuplicatedAPI(prototype) {
                     );
                     return result;
                 },
+                async contextVideoURL(frameId) {
+                    const result = await PluginRegistry.apiWrapper.call(
+                        this,
+                        prototype.frames.contextVideoURL,
+                        frameId,
+                    );
+                    return result;
+                },
                 async chunk(chunkIndex, quality) {
                     const result = await PluginRegistry.apiWrapper.call(
                         this,
@@ -422,6 +430,7 @@ export class Session {
         frameNumbers: () => Promise<number[]>;
         preview: () => Promise<string>;
         contextImage: (frame: number) => Promise<Record<string, ImageBitmap>>;
+        contextVideoURL: (frame: number) => Promise<string | null>;
         search: (
             filters: {
                 offset?: number,
@@ -488,6 +497,7 @@ export class Session {
             preview: Object.getPrototypeOf(this).frames.preview.bind(this),
             search: Object.getPrototypeOf(this).frames.search.bind(this),
             contextImage: Object.getPrototypeOf(this).frames.contextImage.bind(this),
+            contextVideoURL: Object.getPrototypeOf(this).frames.contextVideoURL.bind(this),
             chunk: Object.getPrototypeOf(this).frames.chunk.bind(this),
         };
 

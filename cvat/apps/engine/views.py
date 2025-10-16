@@ -26,7 +26,7 @@ from django.contrib.auth.models import User
 from django.core.files.storage import storages
 from django.db import IntegrityError, transaction
 from django.db.models.query import Prefetch
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -530,7 +530,7 @@ class _DataGetter(metaclass=ABCMeta):
     def __init__(
         self, data_type: str, data_num: Optional[Union[str, int]], data_quality: str
     ) -> None:
-        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image')
+        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image', 'context_video')
         possible_quality_values = ('compressed', 'original')
 
         if not data_type or data_type not in possible_data_type_values:
@@ -574,6 +574,42 @@ class _DataGetter(metaclass=ABCMeta):
                     return HttpResponseNotFound()
 
                 return HttpResponse(data.data, content_type=data.mime)
+            elif self.type == 'context_video':
+                video_rel_path = frame_provider.get_frame_context_video(self.number)
+                if not video_rel_path:
+                    return HttpResponseNotFound()
+
+                # Get the absolute path and validate it's within the data directory
+                from django.http import FileResponse
+                from cvat.apps.engine.mime_types import mimetypes
+                import os
+                
+                # Get data directory from frame provider
+                if hasattr(frame_provider, '_db_segment'):
+                    data_dir = frame_provider._db_segment.task.data.get_raw_data_dirname()
+                elif hasattr(frame_provider, '_db_task'):
+                    data_dir = frame_provider._db_task.data.get_raw_data_dirname()
+                else:
+                    return HttpResponseBadRequest("Cannot determine data directory")
+                
+                video_abs_path = os.path.join(data_dir, video_rel_path)
+                
+                # Security: Ensure the path is within the data directory
+                if not os.path.abspath(video_abs_path).startswith(os.path.abspath(data_dir)):
+                    return HttpResponseBadRequest("Invalid video path")
+                
+                if not os.path.isfile(video_abs_path):
+                    return HttpResponseNotFound()
+                
+                # Determine mime type
+                mime_type, _ = mimetypes.guess_type(video_abs_path)
+                if not mime_type:
+                    mime_type = 'video/mp4'  # default
+                
+                # Stream the video file
+                response = FileResponse(open(video_abs_path, 'rb'), content_type=mime_type)
+                response['Content-Disposition'] = f'inline; filename="{os.path.basename(video_rel_path)}"'
+                return response
             else:
                 return Response(data='unknown data type {}.'.format(self.type),
                     status=status.HTTP_400_BAD_REQUEST)
@@ -645,7 +681,7 @@ class _JobDataGetter(_DataGetter):
         data_num: Optional[Union[str, int]] = None,
         data_index: Optional[Union[str, int]] = None,
     ) -> None:
-        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image')
+        possible_data_type_values = ('chunk', 'frame', 'preview', 'context_image', 'context_video')
         possible_quality_values = ('compressed', 'original')
 
         if not data_type or data_type not in possible_data_type_values:
@@ -1231,7 +1267,7 @@ class TaskViewSet(viewsets.GenericViewSet, mixins.ListModelMixin,
         summary='Get data of a task',
         parameters=[
             OpenApiParameter('type', location=OpenApiParameter.QUERY, required=False,
-                type=OpenApiTypes.STR, enum=['chunk', 'frame', 'context_image'],
+                type=OpenApiTypes.STR, enum=['chunk', 'frame', 'context_image', 'context_video'],
                 description='Specifies the type of the requested data'),
             OpenApiParameter('quality', location=OpenApiParameter.QUERY, required=False,
                 type=OpenApiTypes.STR, enum=['compressed', 'original'],
@@ -1896,7 +1932,7 @@ class JobViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.CreateMo
         parameters=[
             OpenApiParameter('type', description='Specifies the type of the requested data',
                 location=OpenApiParameter.QUERY, required=False, type=OpenApiTypes.STR,
-                enum=['chunk', 'frame', 'context_image']),
+                enum=['chunk', 'frame', 'context_image', 'context_video']),
             OpenApiParameter('quality', location=OpenApiParameter.QUERY, required=False,
                 type=OpenApiTypes.STR, enum=['compressed', 'original'],
                 description="Specifies the quality level of the requested data"),

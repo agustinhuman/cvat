@@ -295,6 +295,15 @@ export function implementJob(Job: typeof JobClass): typeof JobClass {
         },
     });
 
+    Object.defineProperty(Job.prototype.frames.contextVideoURL, 'implementation', {
+        value: function contextVideoURLImplementation(
+            this: JobClass,
+            frameId: Parameters<typeof JobClass.prototype.frames.contextVideoURL>[0],
+        ): ReturnType<typeof JobClass.prototype.frames.contextVideoURL> {
+            return serverProxy.frames.getContextVideoURL(this.id, frameId);
+        },
+    });
+
     Object.defineProperty(Job.prototype.frames.chunk, 'implementation', {
         value: function chunkImplementation(
             this: JobClass,

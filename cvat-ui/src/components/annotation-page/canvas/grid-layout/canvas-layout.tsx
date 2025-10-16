@@ -32,6 +32,7 @@ import CanvasWrapper3DComponent, {
     FrontViewComponent,
 } from 'components/annotation-page/canvas/views/canvas3d/canvas-wrapper3D';
 import ContextImage from 'components/annotation-page/canvas/views/context-image/context-image';
+import ContextVideo from 'components/annotation-page/canvas/views/context-video/context-video';
 import CVATTooltip from 'components/common/cvat-tooltip';
 import { useUpdateEffect } from 'utils/hooks';
 import defaultLayout, { ItemLayout, ViewType } from './canvas-layout.conf';
@@ -51,6 +52,9 @@ const ViewFabric = (itemLayout: ItemLayout): JSX.Element => {
             break;
         case ViewType.RELATED_IMAGE:
             component = <ContextImage offset={offset} />;
+            break;
+        case ViewType.CONTEXT_VIDEO:
+            component = <ContextVideo offset={offset} />;
             break;
         case ViewType.CANVAS_3D_FRONT:
             component = <FrontViewComponent />;

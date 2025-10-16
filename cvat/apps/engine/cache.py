@@ -67,6 +67,65 @@ DataWithMime = tuple[io.BytesIO, str]
 _CacheItem = tuple[io.BytesIO, str, int, Union[datetime, None]]
 
 
+def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str]:
+    """
+    Find a context video file for a given image based on naming conventions.
+    
+    Looks for video files with:
+    - Same name as image (with or without leading dot)
+    - In same folder, or in 'context' or '.context' subfolders
+    - With video extensions
+    
+    Args:
+        image_path: Path to the image file (relative to data_dir)
+        data_dir: Base directory where data is stored
+        
+    Returns:
+        Relative path to video file if found, None otherwise
+    """
+    from cvat.apps.engine.mime_types import mimetypes
+    
+    # Video extensions to check for
+    video_extensions = [
+        '.mp4', '.avi', '.mov', '.webm', '.mkv', '.flv', '.wmv', 
+        '.m4v', '.mpg', '.mpeg', '.3gp', '.ogv'
+    ]
+    
+    # Get image name without extension
+    image_dir = os.path.dirname(image_path)
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    
+    # Remove leading dot if present in image name
+    if image_name.startswith('.'):
+        image_name = image_name[1:]
+    
+    # Possible video names (with and without leading dot)
+    video_name_variants = [image_name, f'.{image_name}']
+    
+    # Directories to check (same folder, context, .context)
+    dirs_to_check = [
+        image_dir,
+        os.path.join(image_dir, 'context'),
+        os.path.join(image_dir, '.context'),
+    ]
+    
+    # Check all combinations
+    for check_dir in dirs_to_check:
+        for video_name in video_name_variants:
+            for ext in video_extensions:
+                video_filename = f'{video_name}{ext}'
+                video_path = os.path.join(check_dir, video_filename)
+                full_video_path = os.path.join(data_dir, video_path)
+                
+                # Check if file exists and is a video
+                if os.path.isfile(full_video_path):
+                    mime_type, _ = mimetypes.guess_type(full_video_path)
+                    if mime_type and mime_type.startswith('video/'):
+                        return video_path
+    
+    return None
+
+
 class CacheTooLargeDataError(Exception):
     pass
 
@@ -576,6 +635,41 @@ class MediaCache:
                 ),
             )
         )
+
+    @staticmethod
+    def get_context_video_for_frame(db_data: models.Data, frame_number: int) -> Optional[str]:
+        """
+        Get context video path for a specific frame if one exists.
+        
+        Args:
+            db_data: Data model instance
+            frame_number: Frame number to get context video for
+            
+        Returns:
+            Relative path to video file if found, None otherwise
+        """
+        # Get the image for this frame
+        try:
+            if hasattr(db_data, 'video'):
+                # For video tasks, use a generic naming pattern
+                # Frame number based approach
+                data_dir = db_data.get_raw_data_dirname()
+                
+                # For video source, we can still check for context videos
+                # using the video filename as base
+                video_path = db_data.video.path if hasattr(db_data, 'video') else None
+                if video_path:
+                    return find_context_video_for_image(video_path, data_dir)
+            else:
+                # For image tasks, get the specific image
+                db_image = db_data.images.filter(frame=frame_number).first()
+                if db_image and db_image.path:
+                    data_dir = db_data.get_raw_data_dirname()
+                    return find_context_video_for_image(db_image.path, data_dir)
+        except Exception as e:
+            slogger.glob.warning(f"Error finding context video for frame {frame_number}: {e}")
+        
+        return None
 
     @staticmethod
     def read_raw_images(

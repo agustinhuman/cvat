@@ -1540,6 +1540,33 @@ async function getImageContext(jid: number, frame: number): Promise<ArrayBuffer>
     }
 }
 
+async function getContextVideoURL(jid: number, frame: number): Promise<string | null> {
+    const { backendAPI } = config;
+
+    try {
+        const response = await Axios.get(`${backendAPI}/jobs/${jid}/data`, {
+            params: {
+                quality: 'original',
+                type: 'context_video',
+                number: frame,
+            },
+            responseType: 'blob',
+        });
+
+        // If we got a response, the video exists, return the URL
+        if (response.status === 200) {
+            return `${backendAPI}/jobs/${jid}/data?type=context_video&number=${frame}&quality=original`;
+        }
+        return null;
+    } catch (errorData) {
+        // 404 means no context video exists
+        if (errorData?.response?.status === 404) {
+            return null;
+        }
+        throw generateError(errorData);
+    }
+}
+
 async function getData(jid: number, chunk: number, quality: ChunkQuality, retry = 0): Promise<ArrayBuffer> {
     const { backendAPI } = config;
 
@@ -2481,6 +2508,7 @@ export default Object.freeze({
         saveMeta,
         getPreview,
         getImageContext,
+        getContextVideoURL,
     }),
 
     annotations: Object.freeze({

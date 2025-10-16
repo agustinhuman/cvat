@@ -197,6 +197,12 @@ class IFrameProvider(metaclass=ABCMeta):
     ) -> Optional[DataWithMeta[BytesIO]]: ...
 
     @abstractmethod
+    def get_frame_context_video(
+        self,
+        frame_number: int,
+    ) -> Optional[str]: ...
+
+    @abstractmethod
     def iterate_frames(
         self,
         *,
@@ -371,6 +377,14 @@ class TaskFrameProvider(IFrameProvider):
         frame_number: int,
     ) -> Optional[DataWithMeta[BytesIO]]:
         return self._get_segment_frame_provider(frame_number).get_frame_context_images_chunk(
+            frame_number
+        )
+
+    def get_frame_context_video(
+        self,
+        frame_number: int,
+    ) -> Optional[str]:
+        return self._get_segment_frame_provider(frame_number).get_frame_context_video(
             frame_number
         )
 
@@ -653,6 +667,16 @@ class SegmentFrameProvider(IFrameProvider):
             return None
 
         return DataWithMeta[BytesIO](data, mime=mime)
+
+    def get_frame_context_video(
+        self,
+        frame_number: int,
+    ) -> Optional[str]:
+        self.validate_frame_number(frame_number)
+
+        db_data = self._db_segment.task.data
+        cache = MediaCache()
+        return cache.get_context_video_for_frame(db_data, frame_number)
 
     def iterate_frames(
         self,
