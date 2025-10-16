@@ -36,14 +36,19 @@ function ContextVideo(props: Props): JSX.Element {
 
     useEffect(() => {
         let unmounted = false;
+        
+        console.log(`[CONTEXT_VIDEO] Component effect triggered - frameIndex: ${frameIndex}, job: ${job?.id}`);
+        
         const promise = job.frames.contextVideoURL(frameIndex);
         setFetching(true);
         promise.then((url: string | null) => {
             if (!unmounted) {
+                console.log(`[CONTEXT_VIDEO] contextVideoURL resolved - url: ${url}`);
                 setVideoURL(url);
             }
         }).catch((error: any) => {
             if (!unmounted) {
+                console.error(`[CONTEXT_VIDEO] contextVideoURL error:`, error);
                 setHasError(true);
                 notification.error({
                     message: `Could not fetch context video. Frame: ${frameIndex}`,
@@ -52,17 +57,20 @@ function ContextVideo(props: Props): JSX.Element {
             }
         }).finally(() => {
             if (!unmounted) {
+                console.log(`[CONTEXT_VIDEO] contextVideoURL completed - fetching: false`);
                 setFetching(false);
             }
         });
 
         return () => {
+            console.log(`[CONTEXT_VIDEO] Component cleanup - frameIndex: ${frameIndex}`);
             setVideoURL(null);
             unmounted = true;
         };
     }, [frameIndex]);
 
     if (hasError || (!fetching && !videoURL)) {
+        console.log(`[CONTEXT_VIDEO] Rendering "no video" state - hasError: ${hasError}, fetching: ${fetching}, videoURL: ${videoURL}`);
         return (
             <div className='cvat-context-video-wrapper'>
                 <div className='cvat-context-video-header'>
@@ -75,6 +83,7 @@ function ContextVideo(props: Props): JSX.Element {
     }
 
     if (fetching) {
+        console.log(`[CONTEXT_VIDEO] Rendering "loading" state`);
         return (
             <div className='cvat-context-video-wrapper'>
                 <Spin size='small' />
@@ -82,6 +91,7 @@ function ContextVideo(props: Props): JSX.Element {
         );
     }
 
+    console.log(`[CONTEXT_VIDEO] Rendering video player - videoURL: ${videoURL}`);
     return (
         <div className='cvat-context-video-wrapper'>
             <div className='cvat-context-video-header'>

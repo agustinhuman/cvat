@@ -361,11 +361,16 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                 <CVATTooltip title='Add context video'>
                     <PlayCircleOutlined
                         onClick={() => {
+                            console.log('[CONTEXT_VIDEO] Add context video button clicked');
+                            
                             const MAXIMUM_VIDEOS = 1;
                             const existingVideos = layoutConfig
                                 .filter((configItem: ItemLayout) => configItem.viewType === ViewType.CONTEXT_VIDEO);
 
+                            console.log(`[CONTEXT_VIDEO] Existing videos: ${existingVideos.length}, max: ${MAXIMUM_VIDEOS}`);
+
                             if (existingVideos.length >= MAXIMUM_VIDEOS) {
+                                console.log('[CONTEXT_VIDEO] Maximum videos already added');
                                 return;
                             }
 
@@ -374,6 +379,8 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                                 configItem.viewType === ViewType.RELATED_IMAGE || 
                                 configItem.viewType === ViewType.CONTEXT_VIDEO
                             );
+
+                            console.log(`[CONTEXT_VIDEO] Existing related items: ${existingRelated.length}`);
 
                             let newVideoView: ItemLayout;
 
@@ -384,6 +391,7 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                                 );
 
                                 if (!canvasView) {
+                                    console.error('[CONTEXT_VIDEO] Cannot find canvas view');
                                     return;
                                 }
 
@@ -396,6 +404,7 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                                     h: config.CANVAS_WORKSPACE_DEFAULT_CONTEXT_HEIGHT,
                                     viewIndex: '0',
                                 };
+                                console.log('[CONTEXT_VIDEO] Created new video view (no related items)', newVideoView);
                             } else {
                                 // Position below or next to existing related items
                                 const latest = existingRelated[existingRelated.length - 1];
@@ -405,8 +414,10 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                                     offset: [0, 0],
                                     viewIndex: '0',
                                 };
+                                console.log('[CONTEXT_VIDEO] Created new video view (with related items)', newVideoView);
                             }
 
+                            console.log('[CONTEXT_VIDEO] Adding video view to layout');
                             setLayoutConfig(fitLayout(type as DimensionType, [...layoutConfig, newVideoView]));
                             window.dispatchEvent(new Event('resize'));
                         }}

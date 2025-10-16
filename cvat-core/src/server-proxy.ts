@@ -1543,26 +1543,39 @@ async function getImageContext(jid: number, frame: number): Promise<ArrayBuffer>
 async function getContextVideoURL(jid: number, frame: number): Promise<string | null> {
     const { backendAPI } = config;
 
+    console.log(`[CONTEXT_VIDEO] getContextVideoURL called - job: ${jid}, frame: ${frame}`);
+
     try {
+        const url = `${backendAPI}/jobs/${jid}/data`;
+        const params = {
+            quality: 'original',
+            type: 'context_video',
+            number: frame,
+        };
+        
+        console.log(`[CONTEXT_VIDEO] Making HEAD request to: ${url}`, params);
+        
         // Use HEAD request to check if video exists without downloading it
-        const response = await Axios.head(`${backendAPI}/jobs/${jid}/data`, {
-            params: {
-                quality: 'original',
-                type: 'context_video',
-                number: frame,
-            },
-        });
+        const response = await Axios.head(url, { params });
+
+        console.log(`[CONTEXT_VIDEO] HEAD response status: ${response.status}`);
 
         // If we got a response, the video exists, return the URL
         if (response.status === 200) {
-            return `${backendAPI}/jobs/${jid}/data?type=context_video&number=${frame}&quality=original`;
+            const videoURL = `${backendAPI}/jobs/${jid}/data?type=context_video&number=${frame}&quality=original`;
+            console.log(`[CONTEXT_VIDEO] ✓ Video URL: ${videoURL}`);
+            return videoURL;
         }
+        console.log(`[CONTEXT_VIDEO] ✗ No video (status ${response.status})`);
         return null;
     } catch (errorData) {
+        console.log(`[CONTEXT_VIDEO] Error:`, errorData);
         // 404 means no context video exists
         if (errorData?.response?.status === 404) {
+            console.log(`[CONTEXT_VIDEO] ✗ No video found (404)`);
             return null;
         }
+        console.error(`[CONTEXT_VIDEO] Unexpected error:`, errorData);
         throw generateError(errorData);
     }
 }

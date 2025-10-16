@@ -575,8 +575,15 @@ class _DataGetter(metaclass=ABCMeta):
 
                 return HttpResponse(data.data, content_type=data.mime)
             elif self.type == 'context_video':
+                import logging
+                logger = logging.getLogger('cvat.server')
+                logger.info(f"[CONTEXT_VIDEO] Request received - type: {self.type}, number: {self.number}")
+                
                 video_rel_path = frame_provider.get_frame_context_video(self.number)
+                logger.info(f"[CONTEXT_VIDEO] Frame provider returned: {video_rel_path}")
+                
                 if not video_rel_path:
+                    logger.info(f"[CONTEXT_VIDEO] No video found, returning 404")
                     return HttpResponseNotFound()
 
                 # Get the absolute path and validate it's within the data directory
@@ -587,18 +594,24 @@ class _DataGetter(metaclass=ABCMeta):
                 # Get data directory from frame provider
                 if hasattr(frame_provider, '_db_segment'):
                     data_dir = frame_provider._db_segment.task.data.get_raw_data_dirname()
+                    logger.info(f"[CONTEXT_VIDEO] Data dir from segment: {data_dir}")
                 elif hasattr(frame_provider, '_db_task'):
                     data_dir = frame_provider._db_task.data.get_raw_data_dirname()
+                    logger.info(f"[CONTEXT_VIDEO] Data dir from task: {data_dir}")
                 else:
+                    logger.error(f"[CONTEXT_VIDEO] Cannot determine data directory")
                     return HttpResponseBadRequest("Cannot determine data directory")
                 
                 video_abs_path = os.path.join(data_dir, video_rel_path)
+                logger.info(f"[CONTEXT_VIDEO] Video absolute path: {video_abs_path}")
                 
                 # Security: Ensure the path is within the data directory
                 if not os.path.abspath(video_abs_path).startswith(os.path.abspath(data_dir)):
+                    logger.error(f"[CONTEXT_VIDEO] Invalid video path (security check failed)")
                     return HttpResponseBadRequest("Invalid video path")
                 
                 if not os.path.isfile(video_abs_path):
+                    logger.error(f"[CONTEXT_VIDEO] Video file not found at path: {video_abs_path}")
                     return HttpResponseNotFound()
                 
                 # Determine mime type
@@ -606,9 +619,12 @@ class _DataGetter(metaclass=ABCMeta):
                 if not mime_type:
                     mime_type = 'video/mp4'  # default
                 
+                logger.info(f"[CONTEXT_VIDEO] Serving video with MIME type: {mime_type}")
+                
                 # Stream the video file
                 response = FileResponse(open(video_abs_path, 'rb'), content_type=mime_type)
                 response['Content-Disposition'] = f'inline; filename="{os.path.basename(video_rel_path)}"'
+                logger.info(f"[CONTEXT_VIDEO] Response prepared successfully")
                 return response
             else:
                 return Response(data='unknown data type {}.'.format(self.type),

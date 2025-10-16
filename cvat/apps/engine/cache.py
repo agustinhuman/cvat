@@ -85,6 +85,8 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
     """
     from cvat.apps.engine.mime_types import mimetypes
     
+    slogger.glob.info(f"[CONTEXT_VIDEO] Searching for context video - image_path: {image_path}, data_dir: {data_dir}")
+    
     # Video extensions to check for
     video_extensions = [
         '.mp4', '.avi', '.mov', '.webm', '.mkv', '.flv', '.wmv', 
@@ -99,6 +101,8 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
     if image_name.startswith('.'):
         image_name = image_name[1:]
     
+    slogger.glob.info(f"[CONTEXT_VIDEO] Image dir: {image_dir}, Image name: {image_name}")
+    
     # Possible video names (with and without leading dot)
     video_name_variants = [image_name, f'.{image_name}']
     
@@ -109,6 +113,9 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
         os.path.join(image_dir, '.context'),
     ]
     
+    slogger.glob.info(f"[CONTEXT_VIDEO] Video name variants: {video_name_variants}")
+    slogger.glob.info(f"[CONTEXT_VIDEO] Directories to check: {dirs_to_check}")
+    
     # Check all combinations
     for check_dir in dirs_to_check:
         for video_name in video_name_variants:
@@ -117,12 +124,18 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
                 video_path = os.path.join(check_dir, video_filename)
                 full_video_path = os.path.join(data_dir, video_path)
                 
+                slogger.glob.debug(f"[CONTEXT_VIDEO] Checking: {full_video_path}")
+                
                 # Check if file exists and is a video
                 if os.path.isfile(full_video_path):
+                    slogger.glob.info(f"[CONTEXT_VIDEO] File exists: {full_video_path}")
                     mime_type, _ = mimetypes.guess_type(full_video_path)
+                    slogger.glob.info(f"[CONTEXT_VIDEO] MIME type: {mime_type}")
                     if mime_type and mime_type.startswith('video/'):
+                        slogger.glob.info(f"[CONTEXT_VIDEO] ✓ Found context video: {video_path}")
                         return video_path
     
+    slogger.glob.info(f"[CONTEXT_VIDEO] ✗ No context video found for {image_path}")
     return None
 
 
@@ -648,9 +661,12 @@ class MediaCache:
         Returns:
             Relative path to video file if found, None otherwise
         """
+        slogger.glob.info(f"[CONTEXT_VIDEO] get_context_video_for_frame called - frame_number: {frame_number}, data_id: {db_data.id}")
+        
         # Get the image for this frame
         try:
             if hasattr(db_data, 'video'):
+                slogger.glob.info(f"[CONTEXT_VIDEO] Data source is video")
                 # For video tasks, use a generic naming pattern
                 # Frame number based approach
                 data_dir = db_data.get_raw_data_dirname()
@@ -659,15 +675,24 @@ class MediaCache:
                 # using the video filename as base
                 video_path = db_data.video.path if hasattr(db_data, 'video') else None
                 if video_path:
-                    return find_context_video_for_image(video_path, data_dir)
+                    slogger.glob.info(f"[CONTEXT_VIDEO] Video path: {video_path}, data_dir: {data_dir}")
+                    result = find_context_video_for_image(video_path, data_dir)
+                    slogger.glob.info(f"[CONTEXT_VIDEO] Result for video source: {result}")
+                    return result
             else:
+                slogger.glob.info(f"[CONTEXT_VIDEO] Data source is image set")
                 # For image tasks, get the specific image
                 db_image = db_data.images.filter(frame=frame_number).first()
                 if db_image and db_image.path:
                     data_dir = db_data.get_raw_data_dirname()
-                    return find_context_video_for_image(db_image.path, data_dir)
+                    slogger.glob.info(f"[CONTEXT_VIDEO] Image path: {db_image.path}, data_dir: {data_dir}")
+                    result = find_context_video_for_image(db_image.path, data_dir)
+                    slogger.glob.info(f"[CONTEXT_VIDEO] Result for image source: {result}")
+                    return result
+                else:
+                    slogger.glob.warning(f"[CONTEXT_VIDEO] No image found for frame {frame_number}")
         except Exception as e:
-            slogger.glob.warning(f"Error finding context video for frame {frame_number}: {e}")
+            slogger.glob.warning(f"[CONTEXT_VIDEO] Error finding context video for frame {frame_number}: {e}", exc_info=True)
         
         return None
 
