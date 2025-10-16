@@ -83,8 +83,15 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
     Returns:
         Relative path to video file if found, None otherwise
     """
+    import logging
     from cvat.apps.engine.mime_types import mimetypes
     
+    logger = logging.getLogger(__name__)
+    
+    # Force logging to work - use root logger and print as fallback
+    import sys
+    print(f"[CONTEXT_VIDEO] Searching for context video - image_path: {image_path}, data_dir: {data_dir}", file=sys.stderr, flush=True)
+    logger.info(f"[CONTEXT_VIDEO] Searching for context video - image_path: {image_path}, data_dir: {data_dir}")
     slogger.glob.info(f"[CONTEXT_VIDEO] Searching for context video - image_path: {image_path}, data_dir: {data_dir}")
     
     # Video extensions to check for
@@ -101,6 +108,8 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
     if image_name.startswith('.'):
         image_name = image_name[1:]
     
+    print(f"[CONTEXT_VIDEO] Image dir: {image_dir}, Image name: {image_name}", file=sys.stderr, flush=True)
+    logger.info(f"[CONTEXT_VIDEO] Image dir: {image_dir}, Image name: {image_name}")
     slogger.glob.info(f"[CONTEXT_VIDEO] Image dir: {image_dir}, Image name: {image_name}")
     
     # Possible video names (with and without leading dot)
@@ -113,6 +122,10 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
         os.path.join(image_dir, '.context'),
     ]
     
+    print(f"[CONTEXT_VIDEO] Video name variants: {video_name_variants}", file=sys.stderr, flush=True)
+    print(f"[CONTEXT_VIDEO] Directories to check: {dirs_to_check}", file=sys.stderr, flush=True)
+    logger.info(f"[CONTEXT_VIDEO] Video name variants: {video_name_variants}")
+    logger.info(f"[CONTEXT_VIDEO] Directories to check: {dirs_to_check}")
     slogger.glob.info(f"[CONTEXT_VIDEO] Video name variants: {video_name_variants}")
     slogger.glob.info(f"[CONTEXT_VIDEO] Directories to check: {dirs_to_check}")
     
@@ -124,17 +137,26 @@ def find_context_video_for_image(image_path: str, data_dir: str) -> Optional[str
                 video_path = os.path.join(check_dir, video_filename)
                 full_video_path = os.path.join(data_dir, video_path)
                 
+                logger.debug(f"[CONTEXT_VIDEO] Checking: {full_video_path}")
                 slogger.glob.debug(f"[CONTEXT_VIDEO] Checking: {full_video_path}")
                 
                 # Check if file exists and is a video
                 if os.path.isfile(full_video_path):
+                    print(f"[CONTEXT_VIDEO] File exists: {full_video_path}", file=sys.stderr, flush=True)
+                    logger.info(f"[CONTEXT_VIDEO] File exists: {full_video_path}")
                     slogger.glob.info(f"[CONTEXT_VIDEO] File exists: {full_video_path}")
                     mime_type, _ = mimetypes.guess_type(full_video_path)
+                    print(f"[CONTEXT_VIDEO] MIME type: {mime_type}", file=sys.stderr, flush=True)
+                    logger.info(f"[CONTEXT_VIDEO] MIME type: {mime_type}")
                     slogger.glob.info(f"[CONTEXT_VIDEO] MIME type: {mime_type}")
                     if mime_type and mime_type.startswith('video/'):
+                        print(f"[CONTEXT_VIDEO] ✓ Found context video: {video_path}", file=sys.stderr, flush=True)
+                        logger.info(f"[CONTEXT_VIDEO] ✓ Found context video: {video_path}")
                         slogger.glob.info(f"[CONTEXT_VIDEO] ✓ Found context video: {video_path}")
                         return video_path
     
+    print(f"[CONTEXT_VIDEO] ✗ No context video found for {image_path}", file=sys.stderr, flush=True)
+    logger.info(f"[CONTEXT_VIDEO] ✗ No context video found for {image_path}")
     slogger.glob.info(f"[CONTEXT_VIDEO] ✗ No context video found for {image_path}")
     return None
 
@@ -661,11 +683,19 @@ class MediaCache:
         Returns:
             Relative path to video file if found, None otherwise
         """
+        import logging
+        import sys
+        
+        logger = logging.getLogger(__name__)
+        print(f"[CONTEXT_VIDEO] get_context_video_for_frame called - frame_number: {frame_number}, data_id: {db_data.id}", file=sys.stderr, flush=True)
+        logger.info(f"[CONTEXT_VIDEO] get_context_video_for_frame called - frame_number: {frame_number}, data_id: {db_data.id}")
         slogger.glob.info(f"[CONTEXT_VIDEO] get_context_video_for_frame called - frame_number: {frame_number}, data_id: {db_data.id}")
         
         # Get the image for this frame
         try:
             if hasattr(db_data, 'video'):
+                print(f"[CONTEXT_VIDEO] Data source is video", file=sys.stderr, flush=True)
+                logger.info(f"[CONTEXT_VIDEO] Data source is video")
                 slogger.glob.info(f"[CONTEXT_VIDEO] Data source is video")
                 # For video tasks, use a generic naming pattern
                 # Frame number based approach
@@ -675,23 +705,39 @@ class MediaCache:
                 # using the video filename as base
                 video_path = db_data.video.path if hasattr(db_data, 'video') else None
                 if video_path:
+                    print(f"[CONTEXT_VIDEO] Video path: {video_path}, data_dir: {data_dir}", file=sys.stderr, flush=True)
+                    logger.info(f"[CONTEXT_VIDEO] Video path: {video_path}, data_dir: {data_dir}")
                     slogger.glob.info(f"[CONTEXT_VIDEO] Video path: {video_path}, data_dir: {data_dir}")
                     result = find_context_video_for_image(video_path, data_dir)
+                    print(f"[CONTEXT_VIDEO] Result for video source: {result}", file=sys.stderr, flush=True)
+                    logger.info(f"[CONTEXT_VIDEO] Result for video source: {result}")
                     slogger.glob.info(f"[CONTEXT_VIDEO] Result for video source: {result}")
                     return result
             else:
+                print(f"[CONTEXT_VIDEO] Data source is image set", file=sys.stderr, flush=True)
+                logger.info(f"[CONTEXT_VIDEO] Data source is image set")
                 slogger.glob.info(f"[CONTEXT_VIDEO] Data source is image set")
                 # For image tasks, get the specific image
                 db_image = db_data.images.filter(frame=frame_number).first()
                 if db_image and db_image.path:
                     data_dir = db_data.get_raw_data_dirname()
+                    print(f"[CONTEXT_VIDEO] Image path: {db_image.path}, data_dir: {data_dir}", file=sys.stderr, flush=True)
+                    logger.info(f"[CONTEXT_VIDEO] Image path: {db_image.path}, data_dir: {data_dir}")
                     slogger.glob.info(f"[CONTEXT_VIDEO] Image path: {db_image.path}, data_dir: {data_dir}")
                     result = find_context_video_for_image(db_image.path, data_dir)
+                    print(f"[CONTEXT_VIDEO] Result for image source: {result}", file=sys.stderr, flush=True)
+                    logger.info(f"[CONTEXT_VIDEO] Result for image source: {result}")
                     slogger.glob.info(f"[CONTEXT_VIDEO] Result for image source: {result}")
                     return result
                 else:
+                    print(f"[CONTEXT_VIDEO] No image found for frame {frame_number}", file=sys.stderr, flush=True)
+                    logger.warning(f"[CONTEXT_VIDEO] No image found for frame {frame_number}")
                     slogger.glob.warning(f"[CONTEXT_VIDEO] No image found for frame {frame_number}")
         except Exception as e:
+            import traceback
+            print(f"[CONTEXT_VIDEO] Error finding context video for frame {frame_number}: {e}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            logger.warning(f"[CONTEXT_VIDEO] Error finding context video for frame {frame_number}: {e}", exc_info=True)
             slogger.glob.warning(f"[CONTEXT_VIDEO] Error finding context video for frame {frame_number}: {e}", exc_info=True)
         
         return None

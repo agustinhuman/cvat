@@ -17,6 +17,8 @@ interface Props {
 }
 
 function ContextVideo(props: Props): JSX.Element {
+    console.log('[CONTEXT_VIDEO] ContextVideo component rendered', props);
+    
     const { offset } = props;
     const defaultFrameOffset = (offset[0] || 0);
 
@@ -29,6 +31,8 @@ function ContextVideo(props: Props): JSX.Element {
         frame: state.annotation.player.frame.number,
     }), shallowEqual);
     const frameIndex = frame + defaultFrameOffset;
+
+    console.log(`[CONTEXT_VIDEO] Component state - frameIndex: ${frameIndex}, job: ${job?.id}`);
 
     const [videoURL, setVideoURL] = useState<string | null>(null);
     const [fetching, setFetching] = useState<boolean>(false);
