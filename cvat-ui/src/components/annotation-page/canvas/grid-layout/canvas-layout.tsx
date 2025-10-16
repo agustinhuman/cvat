@@ -361,7 +361,7 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                 <CVATTooltip title='Add context video'>
                     <PlayCircleOutlined
                         onClick={() => {
-                            const MAXIMUM_VIDEOS = 1; // Usually one context video per frame
+                            const MAXIMUM_VIDEOS = 1;
                             const existingVideos = layoutConfig
                                 .filter((configItem: ItemLayout) => configItem.viewType === ViewType.CONTEXT_VIDEO);
 
@@ -369,24 +369,43 @@ function CanvasLayout({ type }: { type?: DimensionType }): JSX.Element {
                                 return;
                             }
 
-                            // Create new video view similar to how related images are added
-                            const canvasView = layoutConfig.find((item: ItemLayout) => 
-                                item.viewType === ViewType.CANVAS || item.viewType === ViewType.CANVAS_3D
+                            // Find all related items (images and videos) to position correctly
+                            const existingRelated = layoutConfig.filter((configItem: ItemLayout) => 
+                                configItem.viewType === ViewType.RELATED_IMAGE || 
+                                configItem.viewType === ViewType.CONTEXT_VIDEO
                             );
 
-                            if (!canvasView) {
-                                return;
-                            }
+                            let newVideoView: ItemLayout;
 
-                            const newVideoView: ItemLayout = {
-                                viewType: ViewType.CONTEXT_VIDEO,
-                                offset: [0, 0],
-                                x: canvasView.w,
-                                y: 0,
-                                w: 3,
-                                h: config.CANVAS_WORKSPACE_DEFAULT_CONTEXT_HEIGHT,
-                                viewIndex: '0',
-                            };
+                            if (existingRelated.length === 0) {
+                                // No related items yet, position next to canvas
+                                const canvasView = layoutConfig.find((item: ItemLayout) => 
+                                    item.viewType === ViewType.CANVAS || item.viewType === ViewType.CANVAS_3D
+                                );
+
+                                if (!canvasView) {
+                                    return;
+                                }
+
+                                newVideoView = {
+                                    viewType: ViewType.CONTEXT_VIDEO,
+                                    offset: [0, 0],
+                                    x: canvasView.w,
+                                    y: 0,
+                                    w: 3,
+                                    h: config.CANVAS_WORKSPACE_DEFAULT_CONTEXT_HEIGHT,
+                                    viewIndex: '0',
+                                };
+                            } else {
+                                // Position below or next to existing related items
+                                const latest = existingRelated[existingRelated.length - 1];
+                                newVideoView = {
+                                    ...latest,
+                                    viewType: ViewType.CONTEXT_VIDEO,
+                                    offset: [0, 0],
+                                    viewIndex: '0',
+                                };
+                            }
 
                             setLayoutConfig(fitLayout(type as DimensionType, [...layoutConfig, newVideoView]));
                             window.dispatchEvent(new Event('resize'));
