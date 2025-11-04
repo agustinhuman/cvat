@@ -7725,6 +7725,97 @@ class TaskAnnotation2DContext(ApiTestBase):
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def create_zip_archive_with_related_videos(self, file_name, test_dir, context_data):
+        """Create a test archive with images and related videos."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            for img in context_data:
+                # Create main image
+                image = Image.new("RGB", size=(100, 50))
+                image.save(os.path.join(tmp_dir, img), "png")
+                
+                # Create related video if specified
+                if context_data[img]:
+                    related_path = os.path.join(tmp_dir, "related_images", img.replace(".", "_"))
+                    os.makedirs(related_path, exist_ok=True)
+                    
+                    # Create a simple test video
+                    video_path = os.path.join(related_path, f"related_{img.replace('.png', '.mp4')}")
+                    self._create_test_video(video_path, frames=10)
+
+            zip_file_path = os.path.join(test_dir, file_name)
+            shutil.make_archive(zip_file_path, "zip", tmp_dir)
+        return f"{zip_file_path}.zip"
+
+    def _create_test_video(self, output_path, frames=10, width=100, height=50):
+        """Create a simple test video file."""
+        container = av.open(output_path, mode='w')
+        stream = container.add_stream('h264', rate=25)
+        stream.width = width
+        stream.height = height
+        stream.pix_fmt = 'yuv420p'
+
+        for i in range(frames):
+            # Create a frame with varying colors
+            img = np.zeros((height, width, 3), dtype=np.uint8)
+            img[:, :] = [i * 25 % 256, (i * 50) % 256, (i * 75) % 256]
+            
+            frame = av.VideoFrame.from_ndarray(img, format='rgb24')
+            for packet in stream.encode(frame):
+                container.mux(packet)
+
+        # Flush stream
+        for packet in stream.encode():
+            container.mux(packet)
+
+        container.close()
+
+    def test_check_flag_has_related_context_with_videos(self):
+        """Test that videos in related_images directory are detected as context."""
+        with TestDir() as test_dir:
+            context_data = {"image_1.png": True}
+            filename = self.create_zip_archive_with_related_videos(
+                "test_video_context", test_dir, context_data
+            )
+
+            with open(filename, "rb") as f:
+                img_data = {
+                    "client_files[0]": f,
+                    "image_quality": 75,
+                }
+                task = self._create_task(self.task, img_data)
+
+            task_id = task["id"]
+
+            # Check that related context is detected
+            response = self._get_request("/api/tasks/%s/data/meta" % task_id, self.admin)
+            for frame in response.data["frames"]:
+                self.assertEqual(context_data[frame["name"]], frame["has_related_context"])
+
+    def test_fetch_related_video_from_server(self):
+        """Test that video context can be fetched and returns valid data."""
+        test_name = self._testMethodName
+        context_data = {"image_1.png": True}
+        with TestDir() as test_dir:
+            filename = self.create_zip_archive_with_related_videos(
+                test_name, test_dir, context_data
+            )
+
+            with open(filename, "rb") as f:
+                img_data = {
+                    "client_files[0]": f,
+                    "image_quality": 75,
+                }
+                task = self._create_task(self.task, img_data)
+
+            task_id = task["id"]
+            query_params = {"quality": "original", "type": "context_image", "number": 0}
+            response = self._get_request(
+                "/api/tasks/%s/data" % task_id, self.admin, query_params=query_params
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # The response should be a zip file containing the extracted video frame as JPEG
+            self.assertEqual(response['Content-Type'], 'application/zip')
+
 
 class TaskChangeCloudStorageTestCase(_CloudStorageTestBase):
     @classmethod
