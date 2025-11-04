@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import io
+import mimetypes
 import os
 import os.path
 import pickle  # nosec
@@ -667,6 +668,46 @@ class MediaCache:
 
             yield from media
 
+    @staticmethod
+    def _is_video(file_path: str) -> bool:
+        """Check if a file is a video based on its MIME type."""
+        mime_type = mimetypes.guess_type(file_path)[0]
+        return mime_type is not None and mime_type.startswith("video")
+
+    @staticmethod
+    def _extract_video_frame(video_path: str, frame_number: int = 0) -> PIL.Image.Image:
+        """Extract a single frame from a video file."""
+        with av.open(video_path) as container:
+            video_stream = container.streams.video[0]
+            video_stream.thread_type = "NONE"
+            
+            for i, packet in enumerate(container.demux(video_stream)):
+                for frame in packet.decode():
+                    if i == frame_number:
+                        # Convert av.VideoFrame to PIL Image
+                        return frame.to_image()
+            
+            # If frame_number is out of range, return the first frame
+            container.seek(0)
+            for packet in container.demux(video_stream):
+                for frame in packet.decode():
+                    return frame.to_image()
+            
+            raise ValueError(f"Could not extract frame from video: {video_path}")
+
+    @staticmethod
+    def _load_image_or_video_frame(media_item: tuple[str, str, str]) -> tuple[PIL.Image.Image, str, str]:
+        """Load an image or extract the first frame from a video."""
+        source_path, rel_path, metadata = media_item
+        
+        if MediaCache._is_video(source_path):
+            # Extract first frame from video
+            image = MediaCache._extract_video_frame(source_path, frame_number=0)
+            return image, rel_path, metadata
+        else:
+            # Load image normally
+            return load_image(media_item)
+
     @classmethod
     def read_raw_context_images(
         cls,
@@ -759,7 +800,7 @@ class MediaCache:
 
                 for m in frame_media:
                     if decode:
-                        m = load_image(m)
+                        m = cls._load_image_or_video_frame(m)
 
                     yield frame_id, m
 

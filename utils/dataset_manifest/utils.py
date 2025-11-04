@@ -81,7 +81,8 @@ def is_point_cloud(media_file: str) -> bool:
 
 def _prepare_context_list(files: Iterable[str], base_dir: Optional[str] = None):
     return sorted(
-        os.path.relpath(x, base_dir) if base_dir is not None else x for x in filter(is_image, files)
+        os.path.relpath(x, base_dir) if base_dir is not None else x 
+        for x in files if is_image(x) or is_video(x)
     )
 
 
@@ -99,6 +100,7 @@ def _find_related_images_2D(
         00001_png/
           context_image_1.jpeg
           context_image_2.png
+          context_video_1.mp4
     """
 
     regular_images = set()
