@@ -1,18 +1,18 @@
 # Video Context Files Support
 
-This document describes the video context files feature that extends CVAT's "Contextual images" functionality to support videos.
+This document describes the video context files feature that extends CVAT's "Contextual images" functionality to support videos with full playback.
 
 ## Overview
 
-Previously, CVAT's contextual images feature only supported image files in the `related_images` directory. This enhancement allows video files to be used as contextual media alongside images.
+CVAT's contextual feature allows you to display additional media alongside the frame being annotated. This enhancement extends the feature to support video files with full playback capabilities in the context viewer.
 
 ## How It Works
 
 When you place video files in the `related_images` directory structure, CVAT will:
 1. Automatically detect them during task creation
-2. Extract the first frame from each video
-3. Display that frame as context (similar to a video thumbnail)
-4. Store the video file path in the database for potential future enhancements
+2. Serve them as actual video files (not just thumbnails)
+3. Display them with full playback controls in the context viewer
+4. Allow users to play, pause, and seek through the video
 
 ## Directory Structure
 
@@ -25,22 +25,37 @@ task_data/
   related_images/
     image_001_png/
       context_image_1.jpeg      # Regular context image
-      context_video_1.mp4       # ✓ Video now supported!
-      context_video_2.avi       # ✓ Any video format supported by PyAV
+      context_video_1.mp4       # ✓ Video with full playback!
+      context_video_2.avi       # ✓ Any video format supported by browsers
     image_002_png/
       context_image_2.jpeg
-      context_video_3.mp4       # ✓ Video now supported!
+      context_video_3.mp4       # ✓ Video with full playback!
 ```
 
 ## Supported Video Formats
 
-Any video format supported by PyAV (FFmpeg) can be used, including:
-- MP4 (.mp4)
+Videos are served directly to the browser, so any format supported by HTML5 video works:
+- MP4 (.mp4) - Recommended
+- WebM (.webm) - Recommended
 - AVI (.avi)
 - MOV (.mov)
-- WebM (.webm)
 - MKV (.mkv)
 - And more...
+
+**Note:** For best browser compatibility, use MP4 (H.264) or WebM formats.
+
+## Features
+
+### Video Playback
+- Full video player with standard controls (play/pause, seek, volume)
+- Videos autoplay and loop by default
+- Seamless switching between image and video contexts
+- Video preview in the context selector gallery
+
+### Performance
+- Videos are served as-is (no server-side processing)
+- Efficient streaming using browser's native video player
+- Automatic cleanup of video object URLs to prevent memory leaks
 
 ## Usage
 
@@ -73,68 +88,83 @@ python manage.py rescan_related_files --dry-run
 
 2. **cvat/apps/engine/cache.py**
    - Added `_is_video()` to detect video files by MIME type
-   - Added `_extract_video_frame()` to extract first frame from videos
-   - Added `_load_image_or_video_frame()` to handle both images and videos
-   - Modified `read_raw_context_images()` to use new helper
+   - Modified `_load_image_or_video()` to handle both images and videos differently
+   - Updated `prepare_context_images_chunk()` to include actual video files in ZIP
+   - Images are converted to JPEG, videos are included as-is
 
 3. **cvat/apps/engine/management/commands/rescan_related_files.py**
-   - New management command for rescanning existing tasks
+   - Management command for rescanning existing tasks
    - Discovers new related files (images and videos)
    - Creates database entries and associations
 
-### Frontend Compatibility
+### Frontend Changes
 
-The current implementation extracts the first frame from videos and serves them as JPEG images. This means:
-- ✓ No frontend changes required for MVP
-- ✓ Videos appear as static thumbnails in the context viewer
-- ✓ Fully backward compatible
+1. **cvat-data/src/ts/unzip_imgs.worker.ts**
+   - Updated to detect video files by extension
+   - Returns videos as Blobs instead of attempting to create ImageBitmaps
 
-### Future Enhancements
+2. **cvat-data/src/ts/cvat-data.ts**
+   - Modified `decodeContextImages()` to return both ImageBitmap and Blob types
 
-Potential future improvements could include:
-- Full video playback in the context viewer
-- Frame selection (specify which frame to display)
-- Video timeline scrubbing
-- Multiple frame extraction
-- Video metadata display
+3. **cvat-core/src/frames.ts**
+   - Updated `getContextImage()` to handle mixed media types
+   - Adjusted cache size calculation for both images and videos
 
-## Testing
+4. **cvat-ui/.../context-image.tsx**
+   - Added video element alongside canvas
+   - Detects media type (Blob vs ImageBitmap) and renders appropriately
+   - Implements video object URL management
+   - Videos autoplay and loop for continuous viewing
 
-The feature includes comprehensive tests in `cvat/apps/engine/tests/test_rest_api.py`:
-- `test_check_flag_has_related_context_with_videos()` - Verifies video detection
-- `test_fetch_related_video_from_server()` - Tests video context fetching
+5. **cvat-ui/.../context-image-selector.tsx**
+   - Updated gallery to show both images and videos
+   - Video thumbnails display play icon overlay
+   - Handles cleanup of video object URLs
+
+6. **cvat-ui/.../styles.scss**
+   - Added styling for video elements
+   - Video preview styling in gallery
 
 ## API
 
-No API changes are required. Videos are served through the existing context images endpoint:
+No API changes required. Videos are served through the existing context endpoint:
 
 ```
 GET /api/tasks/{task_id}/data?quality=original&type=context_image&number={frame_number}
 ```
 
-The response is a ZIP file containing JPEG images (including extracted video frames).
+The response is a ZIP file containing both JPEG images and video files.
 
-## Performance Considerations
+## Video Recommendations
 
-- Video frame extraction happens during context image preparation
-- First frame extraction is relatively fast (< 1 second for most videos)
-- Extracted frames are cached like regular context images
-- No significant performance impact expected
+For optimal performance and compatibility:
+- Keep videos short (around 15 seconds as suggested)
+- Use MP4 format with H.264 codec
+- Reasonable resolution (720p or lower for context videos)
+- Compress videos to reduce file size
 
 ## Troubleshooting
 
 ### Videos not appearing as context
 
 1. Check the directory structure matches the expected format
-2. Verify video files are in a supported format
+2. Verify video files are in a browser-supported format
 3. Check file permissions (videos must be readable)
 4. For existing tasks, run `rescan_related_files` command
 
-### Frame extraction errors
+### Video playback issues
 
-1. Ensure PyAV (av) is installed
-2. Verify video file is not corrupted
-3. Check server logs for detailed error messages
+1. Ensure browser supports the video format
+2. Try converting to MP4 (H.264) for best compatibility
+3. Check browser console for errors
+4. Verify video file is not corrupted
+
+### Performance issues
+
+1. Reduce video resolution if context viewer is slow
+2. Compress videos to reduce file size
+3. Use shorter video clips
+4. Check network bandwidth if using cloud storage
 
 ## Example
 
@@ -150,11 +180,11 @@ cp frame_001.png my_task/
 # Add context image
 cp context.jpg my_task/related_images/frame_001_png/
 
-# Add context video (NEW!)
+# Add context video (will play with full controls!)
 cp camera_view.mp4 my_task/related_images/frame_001_png/
 
 # Create ZIP and upload to CVAT
 cd my_task && zip -r ../my_task.zip .
 ```
 
-Then upload `my_task.zip` when creating a task in CVAT. The video's first frame will automatically appear as a context image!
+Then upload `my_task.zip` when creating a task in CVAT. The video will appear in the context viewer with full playback controls!

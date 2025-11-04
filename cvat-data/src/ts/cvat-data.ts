@@ -25,14 +25,14 @@ export enum DimensionType {
 
 export function decodeContextImages(
     block: any, start: number, end: number,
-): Promise<Record<string, ImageBitmap>> {
+): Promise<Record<string, ImageBitmap | Blob>> {
     const decodeZipWorker = (decodeContextImages as any).zipWorker || new Worker(
         new URL('./unzip_imgs.worker', import.meta.url),
     );
     (decodeContextImages as any).zipWorker = decodeZipWorker;
     return new Promise((resolve, reject) => {
         decodeContextImages.mutex.acquire().then((release) => {
-            const result: Record<string, ImageBitmap> = {};
+            const result: Record<string, ImageBitmap | Blob> = {};
             let decoded = 0;
 
             decodeZipWorker.onerror = (event: ErrorEvent) => {
@@ -68,6 +68,7 @@ export function decodeContextImages(
         });
     });
 }
+
 
 decodeContextImages.mutex = new Mutex();
 

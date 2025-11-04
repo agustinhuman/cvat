@@ -698,17 +698,19 @@ class MediaCache:
             raise ValueError(f"Could not extract frame {frame_number} from video: {video_path}")
 
     @staticmethod
-    def _load_image_or_video_frame(media_item: tuple[str, str, str]) -> tuple[PIL.Image.Image, str, str]:
-        """Load an image or extract the first frame from a video."""
+    def _load_image_or_video(media_item: tuple[str, str, str], decode_images: bool = True) -> tuple[PIL.Image.Image | str, str, str]:
+        """Load an image or return video path for later processing."""
         source_path, rel_path, metadata = media_item
         
         if MediaCache._is_video(source_path):
-            # Extract first frame from video
-            image = MediaCache._extract_video_frame(source_path, frame_number=0)
-            return image, rel_path, metadata
+            # Return the path for videos (don't decode)
+            return source_path, rel_path, metadata
         else:
-            # Load image normally
-            return load_image(media_item)
+            # Load image normally if decode is requested
+            if decode_images:
+                return load_image(media_item)
+            else:
+                return source_path, rel_path, metadata
 
     @classmethod
     def read_raw_context_images(
@@ -802,7 +804,7 @@ class MediaCache:
 
                 for m in frame_media:
                     if decode:
-                        m = cls._load_image_or_video_frame(m)
+                        m = cls._load_image_or_video(m, decode_images=True)
 
                     yield frame_id, m
 
@@ -1105,20 +1107,29 @@ class MediaCache:
             closing(self.read_raw_context_images(db_data, frame_ids=[frame_number])) as ri_iter,
             zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file,
         ):
-            for _, (image, path, _) in ri_iter:
+            for _, (image_or_path, path, _) in ri_iter:
                 name = os.path.splitext(path)[0]
 
-                try:
-                    if image.mode != "RGB" and image.mode != "L":
-                        image = image.convert("RGB")
+                # Check if this is a video (path string) or image (PIL.Image.Image)
+                if isinstance(image_or_path, str):
+                    # It's a video file path - add the video file directly to the ZIP
+                    with open(image_or_path, 'rb') as video_file:
+                        # Keep the original extension for videos
+                        video_ext = os.path.splitext(image_or_path)[1]
+                        zip_file.writestr(f"{name}{video_ext}", video_file.read())
+                else:
+                    # It's an image - convert to JPEG as before
+                    try:
+                        if image_or_path.mode != "RGB" and image_or_path.mode != "L":
+                            image_or_path = image_or_path.convert("RGB")
 
-                    image_file = io.BytesIO()
-                    image.save(image_file, format="JPEG", quality=100, optimize=True)
-                    image_file.seek(0)
-                except OSError as e:
-                    raise Exception('Failed to encode image to ".jpeg" format') from e
+                        image_file = io.BytesIO()
+                        image_or_path.save(image_file, format="JPEG", quality=100, optimize=True)
+                        image_file.seek(0)
+                    except OSError as e:
+                        raise Exception('Failed to encode image to ".jpeg" format') from e
 
-                zip_file.writestr(f"{name}.jpg", image_file.getbuffer())
+                    zip_file.writestr(f"{name}.jpg", image_file.getbuffer())
 
                 if not mime_type:
                     mime_type = "application/zip"
