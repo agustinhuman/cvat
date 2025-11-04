@@ -7748,26 +7748,47 @@ class TaskAnnotation2DContext(ApiTestBase):
 
     def _create_test_video(self, output_path, frames=10, width=100, height=50):
         """Create a simple test video file."""
-        container = av.open(output_path, mode='w')
-        stream = container.add_stream('h264', rate=25)
-        stream.width = width
-        stream.height = height
-        stream.pix_fmt = 'yuv420p'
+        try:
+            container = av.open(output_path, mode='w')
+            stream = container.add_stream('h264', rate=25)
+            stream.width = width
+            stream.height = height
+            stream.pix_fmt = 'yuv420p'
 
-        for i in range(frames):
-            # Create a frame with varying colors
-            img = np.zeros((height, width, 3), dtype=np.uint8)
-            img[:, :] = [i * 25 % 256, (i * 50) % 256, (i * 75) % 256]
-            
-            frame = av.VideoFrame.from_ndarray(img, format='rgb24')
-            for packet in stream.encode(frame):
+            for i in range(frames):
+                # Create a frame with varying colors
+                img = np.zeros((height, width, 3), dtype=np.uint8)
+                img[:, :] = [i * 25 % 256, (i * 50) % 256, (i * 75) % 256]
+                
+                frame = av.VideoFrame.from_ndarray(img, format='rgb24')
+                for packet in stream.encode(frame):
+                    container.mux(packet)
+
+            # Flush stream
+            for packet in stream.encode():
                 container.mux(packet)
 
-        # Flush stream
-        for packet in stream.encode():
-            container.mux(packet)
+            container.close()
+        except (ValueError, av.error.InvalidDataError) as e:
+            # If h264 codec is not available, try a more basic codec
+            container = av.open(output_path, mode='w')
+            stream = container.add_stream('mpeg4', rate=25)
+            stream.width = width
+            stream.height = height
+            stream.pix_fmt = 'yuv420p'
 
-        container.close()
+            for i in range(frames):
+                img = np.zeros((height, width, 3), dtype=np.uint8)
+                img[:, :] = [i * 25 % 256, (i * 50) % 256, (i * 75) % 256]
+                
+                frame = av.VideoFrame.from_ndarray(img, format='rgb24')
+                for packet in stream.encode(frame):
+                    container.mux(packet)
+
+            for packet in stream.encode():
+                container.mux(packet)
+
+            container.close()
 
     def test_check_flag_has_related_context_with_videos(self):
         """Test that videos in related_images directory are detected as context."""

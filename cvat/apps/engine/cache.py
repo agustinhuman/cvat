@@ -681,19 +681,21 @@ class MediaCache:
             video_stream = container.streams.video[0]
             video_stream.thread_type = "NONE"
             
-            for i, packet in enumerate(container.demux(video_stream)):
-                for frame in packet.decode():
-                    if i == frame_number:
-                        # Convert av.VideoFrame to PIL Image
+            # For the common case of frame_number=0, just get the first frame directly
+            if frame_number == 0:
+                for packet in container.demux(video_stream):
+                    for frame in packet.decode():
                         return frame.to_image()
+            else:
+                # For other frame numbers, track frames (not packets)
+                frame_count = 0
+                for packet in container.demux(video_stream):
+                    for frame in packet.decode():
+                        if frame_count == frame_number:
+                            return frame.to_image()
+                        frame_count += 1
             
-            # If frame_number is out of range, return the first frame
-            container.seek(0)
-            for packet in container.demux(video_stream):
-                for frame in packet.decode():
-                    return frame.to_image()
-            
-            raise ValueError(f"Could not extract frame from video: {video_path}")
+            raise ValueError(f"Could not extract frame {frame_number} from video: {video_path}")
 
     @staticmethod
     def _load_image_or_video_frame(media_item: tuple[str, str, str]) -> tuple[PIL.Image.Image, str, str]:
