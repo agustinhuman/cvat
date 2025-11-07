@@ -123,6 +123,17 @@ function ContextImage(props: Props): JSX.Element {
     const currentMedia = contextImageData[contextImageName];
     const isVideo = currentMedia ? currentMedia instanceof Blob : false;
 
+    console.log('Render state:', {
+        contextImageName,
+        hasCurrentMedia: !!currentMedia,
+        mediaType: currentMedia ? (currentMedia instanceof Blob ? 'Blob' : currentMedia instanceof ImageBitmap ? 'ImageBitmap' : 'Unknown') : 'None',
+        isVideo,
+        videoURL,
+        contextImageOffset,
+        dataLength: Object.keys(contextImageData).length,
+        willRenderVideo: isVideo && !!videoURL,
+    });
+
     return (
         <div className='cvat-context-image-wrapper'>
             <div className='cvat-context-image-header'>
