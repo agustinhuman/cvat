@@ -64,8 +64,9 @@ onmessage = (e) => {
                                             // Return video as Blob with correct MIME type
                                             console.log('Worker: Processing video file:', relativePath);
                                             const mimeType = getVideoMimeType(relativePath);
-                                            const videoBlob = new Blob([fileData], { type: mimeType });
-                                            console.log('Worker: Created video blob with type:', mimeType, 'size:', videoBlob.size);
+                                            // Create a new Blob with the correct MIME type
+                                            const videoBlob = fileData.slice(0, fileData.size, mimeType);
+                                            console.log('Worker: Created video blob with type:', videoBlob.type, 'size:', videoBlob.size);
                                             postMessage({
                                                 fileName: relativePath,
                                                 index: fileIndex,
