@@ -2,42 +2,69 @@
 //
 // SPDX-License-Identifier: MIT
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import Text from 'antd/lib/typography/Text';
-import { CloseOutlined } from '@ant-design/icons';
+import { CloseOutlined, PlayCircleOutlined } from '@ant-design/icons';
 
 interface Props {
-    images: Record<string, ImageBitmap>;
+    images: Record<string, ImageBitmap | Blob>;
     offset: number;
     onChangeOffset: (offset: number) => void;
     onClose: () => void;
 }
 
-function CanvasWithRef({
-    image, isActive, onClick, name,
-}: { image: ImageBitmap, name: string, isActive: boolean, onClick: () => void }): JSX.Element {
-    const ref = useRef<HTMLCanvasElement>(null);
+function MediaPreview({
+    media, isActive, onClick, name,
+}: { media: ImageBitmap | Blob, name: string, isActive: boolean, onClick: () => void }): JSX.Element {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [videoURL, setVideoURL] = useState<string | null>(null);
+
+    const isVideo = media instanceof Blob;
 
     useEffect((): void => {
-        if (ref.current) {
-            const context = ref.current.getContext('2d');
+        if (isVideo) {
+            // Create object URL for video
+            const url = URL.createObjectURL(media);
+            setVideoURL(url);
+
+            return () => {
+                URL.revokeObjectURL(url);
+            };
+        } else if (canvasRef.current) {
+            // Render image on canvas
+            const context = canvasRef.current.getContext('2d');
             if (context) {
-                ref.current.width = image.width;
-                ref.current.height = image.height;
-                context.drawImage(image, 0, 0);
+                canvasRef.current.width = media.width;
+                canvasRef.current.height = media.height;
+                context.drawImage(media, 0, 0);
             }
         }
-    }, [image, ref]);
+    }, [media, isVideo]);
 
     return (
         <div className={(isActive ? ['cvat-context-image-gallery-item cvat-context-image-gallery-item-current'] : ['cvat-context-image-gallery-item']).join(' ')}>
             <Text strong className='cvat-context-image-gallery-item-name'>{name}</Text>
-            <canvas
-                ref={ref}
-                onClick={onClick}
-            />
+            {isVideo && videoURL ? (
+                <div className='cvat-context-video-preview' onClick={onClick}>
+                    <video
+                        ref={videoRef}
+                        src={videoURL}
+                        muted
+                        style={{ width: '100%', height: 'auto' }}
+                    />
+                    <div className='cvat-context-video-overlay'>
+                        <PlayCircleOutlined style={{ fontSize: '48px', color: 'white' }} />
+                    </div>
+                </div>
+            ) : (
+                <canvas
+                    ref={canvasRef}
+                    onClick={onClick}
+                />
+            )}
         </div>
     );
 }
@@ -54,15 +81,15 @@ function ContextImageSelector(props: Props): React.ReactPortal {
             <div className='cvat-context-image-gallery'>
                 <div className='cvat-context-image-gallery-header'>
                     <Text>
-                        Click the image to display it as a context image
+                        Click the image or video to display it as context
                     </Text>
                     <CloseOutlined className='cvat-context-image-close-button' onClick={onClose} />
                 </div>
                 <div className='cvat-context-image-gallery-items'>
                     { keys.map((key, i: number) => (
-                        <CanvasWithRef
+                        <MediaPreview
                             name={key}
-                            image={images[key]}
+                            media={images[key]}
                             isActive={offset === i}
                             onClick={() => {
                                 onChangeOffset(i);

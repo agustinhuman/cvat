@@ -62,7 +62,7 @@
         }
     }
 
-    > canvas {
+    > canvas, > .cvat-context-video {
         object-fit: contain;
         position: relative;
         top: calc(50% + $grid-unit-size * 2);
@@ -125,6 +125,25 @@
 
                 > canvas {
                     width: 100%;
+                }
+
+                .cvat-context-video-preview {
+                    position: relative;
+                    width: 100%;
+                    cursor: pointer;
+
+                    > video {
+                        width: 100%;
+                        height: auto;
+                    }
+
+                    .cvat-context-video-overlay {
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        pointer-events: none;
+                    }
                 }
             }
         }

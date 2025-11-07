@@ -25,6 +25,7 @@ function ContextImage(props: Props): JSX.Element {
     const defaultContextImageOffset = (offset[1] || 0);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
     const {
         job,
         frame,
@@ -36,7 +37,7 @@ function ContextImage(props: Props): JSX.Element {
     }), shallowEqual);
     const frameIndex = frame + defaultFrameOffset;
 
-    const [contextImageData, setContextImageData] = useState<Record<string, ImageBitmap>>({});
+    const [contextImageData, setContextImageData] = useState<Record<string, ImageBitmap | Blob>>({});
     const [fetching, setFetching] = useState<boolean>(false);
     const [contextImageOffset, setContextImageOffset] = useState<number>(
         Math.min(defaultContextImageOffset, relatedFiles),
@@ -44,13 +45,18 @@ function ContextImage(props: Props): JSX.Element {
 
     const [hasError, setHasError] = useState<boolean>(false);
     const [showSelector, setShowSelector] = useState<boolean>(false);
+    const [videoURL, setVideoURL] = useState<string | null>(null);
 
     useEffect(() => {
         let unmounted = false;
         const promise = job.frames.contextImage(frameIndex);
         setFetching(true);
-        promise.then((imageBitmaps: Record<string, ImageBitmap>) => {
+        promise.then((imageBitmaps: Record<string, ImageBitmap | Blob>) => {
             if (!unmounted) {
+                console.log('Context data received:', Object.keys(imageBitmaps), imageBitmaps);
+                Object.entries(imageBitmaps).forEach(([key, value]) => {
+                    console.log(`Context item ${key}:`, value instanceof Blob ? 'Blob' : value instanceof ImageBitmap ? 'ImageBitmap' : 'Unknown', value);
+                });
                 setContextImageData(imageBitmaps);
             }
         }).catch((error: any) => {
@@ -74,20 +80,71 @@ function ContextImage(props: Props): JSX.Element {
     }, [frameIndex]);
 
     useEffect(() => {
-        if (canvasRef.current) {
-            const sortedKeys = Object.keys(contextImageData).sort();
-            const key = sortedKeys[contextImageOffset];
-            const image = contextImageData[key];
-            const context = canvasRef.current.getContext('2d');
-            if (context && image) {
-                canvasRef.current.width = image.width;
-                canvasRef.current.height = image.height;
-                context.drawImage(image, 0, 0);
+        const sortedKeys = Object.keys(contextImageData).sort();
+        const key = sortedKeys[contextImageOffset];
+        const mediaData = contextImageData[key];
+
+        console.log('Rendering context item:', key, mediaData instanceof Blob ? 'Blob' : mediaData instanceof ImageBitmap ? 'ImageBitmap' : 'Unknown');
+
+        // Clean up previous video URL
+        if (videoURL) {
+            URL.revokeObjectURL(videoURL);
+            setVideoURL(null);
+        }
+
+        if (mediaData) {
+            // Check if it's a Blob (video)
+            const isMediaVideo = mediaData instanceof Blob ||
+                (typeof (mediaData as any).size === 'number' && typeof (mediaData as any).type === 'string' && !(mediaData as any).width);
+            
+            if (isMediaVideo) {
+                // It's a video
+                console.log('Creating video URL from Blob, type:', (mediaData as Blob).type, 'size:', (mediaData as Blob).size);
+                const url = URL.createObjectURL(mediaData as Blob);
+                console.log('Video URL created:', url);
+                setVideoURL(url);
+            } else if (canvasRef.current && (mediaData as any).width) {
+                // It's an image (ImageBitmap has width property)
+                const imageBitmap = mediaData as ImageBitmap;
+                const context = canvasRef.current.getContext('2d');
+                if (context && imageBitmap) {
+                    canvasRef.current.width = imageBitmap.width;
+                    canvasRef.current.height = imageBitmap.height;
+                    context.drawImage(imageBitmap, 0, 0);
+                }
             }
         }
-    }, [contextImageData, contextImageOffset, canvasRef]);
 
-    const contextImageName = Object.keys(contextImageData).sort()[contextImageOffset];
+        // Cleanup on unmount
+        return () => {
+            if (videoURL) {
+                URL.revokeObjectURL(videoURL);
+            }
+        };
+    }, [contextImageData, contextImageOffset]);
+
+    const sortedKeys = Object.keys(contextImageData).sort();
+    const contextImageName = sortedKeys[contextImageOffset];
+    const currentMedia = contextImageData[contextImageName];
+    // Check if it's a Blob (video) - ImageBitmap has width/height, Blob has size/type
+    const isVideo = currentMedia ? (
+        currentMedia instanceof Blob ||
+        (typeof (currentMedia as any).size === 'number' && typeof (currentMedia as any).type === 'string' && !(currentMedia as any).width)
+    ) : false;
+
+    console.log('Render state:', {
+        contextImageName,
+        hasCurrentMedia: !!currentMedia,
+        mediaType: currentMedia ? (currentMedia instanceof Blob ? 'Blob' : currentMedia instanceof ImageBitmap ? 'ImageBitmap' : 'Unknown') : 'None',
+        hasSize: currentMedia ? typeof (currentMedia as any).size : 'N/A',
+        hasWidth: currentMedia ? typeof (currentMedia as any).width : 'N/A',
+        isVideo,
+        videoURL,
+        contextImageOffset,
+        dataLength: Object.keys(contextImageData).length,
+        willRenderVideo: isVideo && !!videoURL,
+    });
+
     return (
         <div className='cvat-context-image-wrapper'>
             <div className='cvat-context-image-header'>
@@ -109,8 +166,22 @@ function ContextImage(props: Props): JSX.Element {
                 (!fetching && contextImageOffset >= Object.keys(contextImageData).length)) && <Text> No data </Text>}
             { fetching && <Spin size='small' /> }
             {
-                contextImageOffset < Object.keys(contextImageData).length &&
-                <canvas ref={canvasRef} />
+                contextImageOffset < Object.keys(contextImageData).length && (
+                    <>
+                        {isVideo && videoURL ? (
+                            <video 
+                                ref={videoRef}
+                                src={videoURL}
+                                controls
+                                autoPlay
+                                loop
+                                className='cvat-context-video'
+                            />
+                        ) : (
+                            <canvas ref={canvasRef} />
+                        )}
+                    </>
+                )
             }
             { showSelector && (
                 <ContextImageSelector

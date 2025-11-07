@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import io
+import mimetypes
 import os
 import os.path
 import pickle  # nosec
@@ -667,6 +668,50 @@ class MediaCache:
 
             yield from media
 
+    @staticmethod
+    def _is_video(file_path: str) -> bool:
+        """Check if a file is a video based on its MIME type."""
+        mime_type = mimetypes.guess_type(file_path)[0]
+        return mime_type is not None and mime_type.startswith("video")
+
+    @staticmethod
+    def _extract_video_frame(video_path: str, frame_number: int = 0) -> PIL.Image.Image:
+        """Extract a single frame from a video file."""
+        with av.open(video_path) as container:
+            video_stream = container.streams.video[0]
+            video_stream.thread_type = "NONE"
+            
+            # For the common case of frame_number=0, just get the first frame directly
+            if frame_number == 0:
+                for packet in container.demux(video_stream):
+                    for frame in packet.decode():
+                        return frame.to_image()
+            else:
+                # For other frame numbers, track frames (not packets)
+                frame_count = 0
+                for packet in container.demux(video_stream):
+                    for frame in packet.decode():
+                        if frame_count == frame_number:
+                            return frame.to_image()
+                        frame_count += 1
+            
+            raise ValueError(f"Could not extract frame {frame_number} from video: {video_path}")
+
+    @staticmethod
+    def _load_image_or_video(media_item: tuple[str, str, str], decode_images: bool = True) -> tuple[PIL.Image.Image | str, str, str]:
+        """Load an image or return video path for later processing."""
+        source_path, rel_path, metadata = media_item
+        
+        if MediaCache._is_video(source_path):
+            # Return the path for videos (don't decode)
+            return source_path, rel_path, metadata
+        else:
+            # Load image normally if decode is requested
+            if decode_images:
+                return load_image(media_item)
+            else:
+                return source_path, rel_path, metadata
+
     @classmethod
     def read_raw_context_images(
         cls,
@@ -759,7 +804,7 @@ class MediaCache:
 
                 for m in frame_media:
                     if decode:
-                        m = load_image(m)
+                        m = cls._load_image_or_video(m, decode_images=True)
 
                     yield frame_id, m
 
@@ -1062,20 +1107,40 @@ class MediaCache:
             closing(self.read_raw_context_images(db_data, frame_ids=[frame_number])) as ri_iter,
             zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file,
         ):
-            for _, (image, path, _) in ri_iter:
+            for _, (image_or_path, path, _) in ri_iter:
                 name = os.path.splitext(path)[0]
 
-                try:
-                    if image.mode != "RGB" and image.mode != "L":
-                        image = image.convert("RGB")
+                # Check if this is a video (path string) or image (PIL.Image.Image)
+                if isinstance(image_or_path, str):
+                    # It's a video file path - add the video file directly to the ZIP
+                    slogger.glob.info(f"Adding video to context ZIP: {path} from {image_or_path}")
+                    try:
+                        if not os.path.exists(image_or_path):
+                            slogger.glob.warning(f"Video file not found: {image_or_path}")
+                            continue
+                        with open(image_or_path, 'rb') as video_file:
+                            # Keep the original extension for videos
+                            video_ext = os.path.splitext(image_or_path)[1]
+                            video_filename = f"{name}{video_ext}"
+                            zip_file.writestr(video_filename, video_file.read())
+                            slogger.glob.info(f"Successfully added video as: {video_filename}")
+                    except Exception as e:
+                        slogger.glob.warning(f"Failed to add video to ZIP: {image_or_path}, error: {e}")
+                        continue
+                else:
+                    # It's an image - convert to JPEG as before
+                    slogger.glob.info(f"Adding image to context ZIP: {path}")
+                    try:
+                        if image_or_path.mode != "RGB" and image_or_path.mode != "L":
+                            image_or_path = image_or_path.convert("RGB")
 
-                    image_file = io.BytesIO()
-                    image.save(image_file, format="JPEG", quality=100, optimize=True)
-                    image_file.seek(0)
-                except OSError as e:
-                    raise Exception('Failed to encode image to ".jpeg" format') from e
+                        image_file = io.BytesIO()
+                        image_or_path.save(image_file, format="JPEG", quality=100, optimize=True)
+                        image_file.seek(0)
+                    except OSError as e:
+                        raise Exception('Failed to encode image to ".jpeg" format') from e
 
-                zip_file.writestr(f"{name}.jpg", image_file.getbuffer())
+                    zip_file.writestr(f"{name}.jpg", image_file.getbuffer())
 
                 if not mime_type:
                     mime_type = "application/zip"
