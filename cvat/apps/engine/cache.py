@@ -1113,12 +1113,23 @@ class MediaCache:
                 # Check if this is a video (path string) or image (PIL.Image.Image)
                 if isinstance(image_or_path, str):
                     # It's a video file path - add the video file directly to the ZIP
-                    with open(image_or_path, 'rb') as video_file:
-                        # Keep the original extension for videos
-                        video_ext = os.path.splitext(image_or_path)[1]
-                        zip_file.writestr(f"{name}{video_ext}", video_file.read())
+                    slogger.glob.info(f"Adding video to context ZIP: {path} from {image_or_path}")
+                    try:
+                        if not os.path.exists(image_or_path):
+                            slogger.glob.warning(f"Video file not found: {image_or_path}")
+                            continue
+                        with open(image_or_path, 'rb') as video_file:
+                            # Keep the original extension for videos
+                            video_ext = os.path.splitext(image_or_path)[1]
+                            video_filename = f"{name}{video_ext}"
+                            zip_file.writestr(video_filename, video_file.read())
+                            slogger.glob.info(f"Successfully added video as: {video_filename}")
+                    except Exception as e:
+                        slogger.glob.warning(f"Failed to add video to ZIP: {image_or_path}, error: {e}")
+                        continue
                 else:
                     # It's an image - convert to JPEG as before
+                    slogger.glob.info(f"Adding image to context ZIP: {path}")
                     try:
                         if image_or_path.mode != "RGB" and image_or_path.mode != "L":
                             image_or_path = image_or_path.convert("RGB")

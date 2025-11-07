@@ -53,6 +53,10 @@ function ContextImage(props: Props): JSX.Element {
         setFetching(true);
         promise.then((imageBitmaps: Record<string, ImageBitmap | Blob>) => {
             if (!unmounted) {
+                console.log('Context data received:', Object.keys(imageBitmaps), imageBitmaps);
+                Object.entries(imageBitmaps).forEach(([key, value]) => {
+                    console.log(`Context item ${key}:`, value instanceof Blob ? 'Blob' : value instanceof ImageBitmap ? 'ImageBitmap' : 'Unknown', value);
+                });
                 setContextImageData(imageBitmaps);
             }
         }).catch((error: any) => {
@@ -80,6 +84,8 @@ function ContextImage(props: Props): JSX.Element {
         const key = sortedKeys[contextImageOffset];
         const mediaData = contextImageData[key];
 
+        console.log('Rendering context item:', key, mediaData instanceof Blob ? 'Blob' : mediaData instanceof ImageBitmap ? 'ImageBitmap' : 'Unknown');
+
         // Clean up previous video URL
         if (videoURL) {
             URL.revokeObjectURL(videoURL);
@@ -89,7 +95,9 @@ function ContextImage(props: Props): JSX.Element {
         if (mediaData) {
             if (mediaData instanceof Blob) {
                 // It's a video
+                console.log('Creating video URL from Blob, type:', mediaData.type, 'size:', mediaData.size);
                 const url = URL.createObjectURL(mediaData);
+                console.log('Video URL created:', url);
                 setVideoURL(url);
             } else if (canvasRef.current) {
                 // It's an image
@@ -110,9 +118,10 @@ function ContextImage(props: Props): JSX.Element {
         };
     }, [contextImageData, contextImageOffset]);
 
-    const contextImageName = Object.keys(contextImageData).sort()[contextImageOffset];
-    const currentMedia = contextImageData[Object.keys(contextImageData).sort()[contextImageOffset]];
-    const isVideo = currentMedia instanceof Blob;
+    const sortedKeys = Object.keys(contextImageData).sort();
+    const contextImageName = sortedKeys[contextImageOffset];
+    const currentMedia = contextImageData[contextImageName];
+    const isVideo = currentMedia ? currentMedia instanceof Blob : false;
 
     return (
         <div className='cvat-context-image-wrapper'>
