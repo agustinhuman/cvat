@@ -93,19 +93,24 @@ function ContextImage(props: Props): JSX.Element {
         }
 
         if (mediaData) {
-            if (mediaData instanceof Blob) {
+            // Check if it's a Blob (video)
+            const isMediaVideo = mediaData instanceof Blob ||
+                (typeof (mediaData as any).size === 'number' && typeof (mediaData as any).type === 'string' && !(mediaData as any).width);
+            
+            if (isMediaVideo) {
                 // It's a video
-                console.log('Creating video URL from Blob, type:', mediaData.type, 'size:', mediaData.size);
-                const url = URL.createObjectURL(mediaData);
+                console.log('Creating video URL from Blob, type:', (mediaData as Blob).type, 'size:', (mediaData as Blob).size);
+                const url = URL.createObjectURL(mediaData as Blob);
                 console.log('Video URL created:', url);
                 setVideoURL(url);
-            } else if (canvasRef.current) {
-                // It's an image
+            } else if (canvasRef.current && (mediaData as any).width) {
+                // It's an image (ImageBitmap has width property)
+                const imageBitmap = mediaData as ImageBitmap;
                 const context = canvasRef.current.getContext('2d');
-                if (context && mediaData) {
-                    canvasRef.current.width = mediaData.width;
-                    canvasRef.current.height = mediaData.height;
-                    context.drawImage(mediaData, 0, 0);
+                if (context && imageBitmap) {
+                    canvasRef.current.width = imageBitmap.width;
+                    canvasRef.current.height = imageBitmap.height;
+                    context.drawImage(imageBitmap, 0, 0);
                 }
             }
         }
@@ -121,12 +126,18 @@ function ContextImage(props: Props): JSX.Element {
     const sortedKeys = Object.keys(contextImageData).sort();
     const contextImageName = sortedKeys[contextImageOffset];
     const currentMedia = contextImageData[contextImageName];
-    const isVideo = currentMedia ? currentMedia instanceof Blob : false;
+    // Check if it's a Blob (video) - ImageBitmap has width/height, Blob has size/type
+    const isVideo = currentMedia ? (
+        currentMedia instanceof Blob ||
+        (typeof (currentMedia as any).size === 'number' && typeof (currentMedia as any).type === 'string' && !(currentMedia as any).width)
+    ) : false;
 
     console.log('Render state:', {
         contextImageName,
         hasCurrentMedia: !!currentMedia,
         mediaType: currentMedia ? (currentMedia instanceof Blob ? 'Blob' : currentMedia instanceof ImageBitmap ? 'ImageBitmap' : 'Unknown') : 'None',
+        hasSize: currentMedia ? typeof (currentMedia as any).size : 'N/A',
+        hasWidth: currentMedia ? typeof (currentMedia as any).width : 'N/A',
         isVideo,
         videoURL,
         contextImageOffset,
