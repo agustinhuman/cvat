@@ -36,13 +36,31 @@ onmessage = (e) => {
                                 if (!errored) {
                                     // do not need to read the rest of block if an error already occurred
                                     if (dimension === dimension2D) {
-                                        createImageBitmap(fileData).then((img) => {
+                                        // Check if the file is a video by extension
+                                        const lowerPath = relativePath.toLowerCase();
+                                        const isVideo = lowerPath.endsWith('.mp4') ||
+                                                        lowerPath.endsWith('.webm') ||
+                                                        lowerPath.endsWith('.ogv') ||
+                                                        lowerPath.endsWith('.avi') ||
+                                                        lowerPath.endsWith('.mov');
+
+                                        if (isVideo) {
+                                            // For videos, send the blob directly
                                             postMessage({
                                                 fileName: relativePath,
                                                 index: fileIndex,
-                                                data: img,
+                                                data: fileData,
                                             });
-                                        });
+                                        } else {
+                                            // For images, create ImageBitmap
+                                            createImageBitmap(fileData).then((img) => {
+                                                postMessage({
+                                                    fileName: relativePath,
+                                                    index: fileIndex,
+                                                    data: img,
+                                                });
+                                            });
+                                        }
                                     } else {
                                         postMessage({
                                             fileName: relativePath,

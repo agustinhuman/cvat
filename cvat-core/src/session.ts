@@ -421,7 +421,7 @@ export class Session {
         cachedChunks: () => Promise<number[]>;
         frameNumbers: () => Promise<number[]>;
         preview: () => Promise<string>;
-        contextImage: (frame: number) => Promise<Record<string, ImageBitmap>>;
+        contextImage: (frame: number) => Promise<Record<string, ImageBitmap | Blob>>;
         search: (
             filters: {
                 offset?: number,

@@ -24,6 +24,7 @@ import av
 import django_rq
 import PIL.Image
 import PIL.ImageOps
+from PIL import UnidentifiedImageError
 import rq
 from django.conf import settings
 from django.core.cache import caches
@@ -668,6 +669,15 @@ class MediaCache:
             yield from media
 
     @classmethod
+    @staticmethod
+    def _decode_related_media(
+        media: tuple[str, str, str]
+    ) -> tuple[PIL.Image.Image | str, str, str]:
+        try:
+            return load_image(media)
+        except (UnidentifiedImageError, OSError):
+            return media
+
     def read_raw_context_images(
         cls,
         db_data: models.Data,
@@ -759,7 +769,7 @@ class MediaCache:
 
                 for m in frame_media:
                     if decode:
-                        m = load_image(m)
+                        m = cls._decode_related_media(m)
 
                     yield frame_id, m
 
@@ -1062,20 +1072,24 @@ class MediaCache:
             closing(self.read_raw_context_images(db_data, frame_ids=[frame_number])) as ri_iter,
             zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file,
         ):
-            for _, (image, path, _) in ri_iter:
-                name = os.path.splitext(path)[0]
+            for _, (media_obj, path, _) in ri_iter:
+                if isinstance(media_obj, PIL.Image.Image):
+                    name = os.path.splitext(path)[0]
 
-                try:
-                    if image.mode != "RGB" and image.mode != "L":
-                        image = image.convert("RGB")
+                    try:
+                        if media_obj.mode not in {"RGB", "L"}:
+                            media_obj = media_obj.convert("RGB")
 
-                    image_file = io.BytesIO()
-                    image.save(image_file, format="JPEG", quality=100, optimize=True)
-                    image_file.seek(0)
-                except OSError as e:
-                    raise Exception('Failed to encode image to ".jpeg" format') from e
+                        image_file = io.BytesIO()
+                        media_obj.save(image_file, format="JPEG", quality=100, optimize=True)
+                        image_file.seek(0)
+                    except OSError as e:
+                        raise Exception('Failed to encode image to ".jpeg" format') from e
 
-                zip_file.writestr(f"{name}.jpg", image_file.getbuffer())
+                    zip_file.writestr(f"{name}.jpg", image_file.getbuffer())
+                else:
+                    with open(media_obj, "rb") as binary_file:
+                        zip_file.writestr(path, binary_file.read())
 
                 if not mime_type:
                     mime_type = "application/zip"

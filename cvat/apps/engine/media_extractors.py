@@ -19,6 +19,7 @@ from contextlib import ExitStack, closing
 from dataclasses import dataclass
 from enum import IntEnum
 from fractions import Fraction
+from pathlib import Path
 from random import shuffle
 from typing import Any, Callable, Optional, Protocol, TypeVar, Union
 
@@ -43,7 +44,11 @@ from cvat.apps.engine.mime_types import mimetypes
 from utils.dataset_manifest import ImageManifestManager, VideoManifestManager
 from utils.dataset_manifest.errors import InvalidPcdError
 from utils.dataset_manifest.utils import MediaDimension as _MediaDimension
-from utils.dataset_manifest.utils import PcdReader, detect_media_dimension
+from utils.dataset_manifest.utils import (
+    PcdReader,
+    detect_media_dimension,
+    is_related_media_path,
+)
 
 ORIENTATION_EXIF_TAG = 274
 
@@ -65,6 +70,9 @@ class FrameQuality(IntEnum):
 
 
 def get_mime(name):
+    if is_related_media_path(name) and MEDIA_TYPES["video"]["has_mime_type"](name):
+        return "image"
+
     for type_name, type_def in MEDIA_TYPES.items():
         if type_def["has_mime_type"](name):
             return type_name
@@ -186,7 +194,7 @@ class CachingMediaIterator(RandomAccessIterator[_MediaT]):
         self.max_cache_memory = max_cache_memory
         self._get_object_size_callback = object_size_callback
         self.used_cache_memory = 0
-        self._cache: dict[int, self._CacheItem] = {}
+        self._cache: dict[int, "CachingMediaIterator._CacheItem"] = {}
 
     def _get_object_size(self, obj: _MediaT) -> int:
         if self._get_object_size_callback:

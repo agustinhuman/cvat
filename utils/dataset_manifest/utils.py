@@ -79,9 +79,18 @@ def is_point_cloud(media_file: str) -> bool:
     return os.path.splitext(media_file)[1].lower() in (".pcd", ".bin")
 
 
+def is_related_media(path: str) -> bool:
+    return is_image(path) or is_video(path)
+
+
+def is_related_media_path(path: str) -> bool:
+    return "related_images" in Path(path).parts
+
+
 def _prepare_context_list(files: Iterable[str], base_dir: Optional[str] = None):
     return sorted(
-        os.path.relpath(x, base_dir) if base_dir is not None else x for x in filter(is_image, files)
+        os.path.relpath(x, base_dir) if base_dir is not None else x
+        for x in filter(is_related_media, files)
     )
 
 
@@ -281,7 +290,8 @@ def find_related_images(
         elif is_image(p):
             has_images |= True
         elif is_video(p):
-            has_videos |= True
+            if not is_related_media_path(p):
+                has_videos |= True
 
     if has_videos and (has_pcd or has_images):
         raise ValueError(
@@ -302,7 +312,7 @@ def find_related_images(
         unknown_files.difference_update(scenes)
         unknown_files.difference_update(ri for ris in related_images.values() for ri in ris)
 
-        if any(is_image(f) for f in unknown_files):
+        if any(is_related_media(f) for f in unknown_files):
             has_images = True
             raise ValueError(
                 "Combined media types are not supported, found: {}. "

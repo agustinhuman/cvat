@@ -28,10 +28,10 @@ const frameDataCache: Record<string, {
     prefetchAnalyzer: PrefetchAnalyzer;
     decodedBlocksCacheSize: number;
     activeChunkRequest: Promise<void> | null;
-    activeContextRequest: Promise<Record<number, ImageBitmap>> | null;
+    activeContextRequest: Promise<Record<number, ImageBitmap | Blob>> | null;
     segmentFrameNumbers: number[];
     contextCache: Record<number, {
-        data: Record<number, ImageBitmap>;
+        data: Record<number, ImageBitmap | Blob>;
         timestamp: number;
         size: number;
     }>;
@@ -742,7 +742,9 @@ async function refreshJobCacheIfOutdated(jobID: number): Promise<void> {
             for (const frame of Object.keys(cached.contextCache)) {
                 for (const image of Object.values(cached.contextCache[+frame].data)) {
                     // close images to immediate memory release
-                    image.close();
+                    if (image instanceof ImageBitmap) {
+                        image.close();
+                    }
                 }
             }
             cached.contextCache = {};
@@ -752,7 +754,7 @@ async function refreshJobCacheIfOutdated(jobID: number): Promise<void> {
     }
 }
 
-export async function getContextImage(jobID: number, frame: number): Promise<Record<string, ImageBitmap>> {
+export async function getContextImage(jobID: number, frame: number): Promise<Record<string, ImageBitmap | Blob>> {
     const frameData = frameDataCache[jobID];
     const meta = await frameData.getMeta();
     const requestId = frame;
@@ -760,7 +762,7 @@ export async function getContextImage(jobID: number, frame: number): Promise<Rec
     const dataFrameNumber = meta.getDataFrameNumber(frame - jobStartFrame);
     const frameIndex = meta.getFrameIndex(dataFrameNumber);
     const { related_files: relatedFiles } = meta.frames[frameIndex];
-    return new Promise<Record<string, ImageBitmap>>((resolve, reject) => {
+    return new Promise<Record<string, ImageBitmap | Blob>>((resolve, reject) => {
         if (!(jobID in frameDataCache)) {
             reject(new Error(
                 'Frame data was not initialized for this job. Try first requesting any frame.',
@@ -783,7 +785,12 @@ export async function getContextImage(jobID: number, frame: number): Promise<Rec
                         .then((encodedImages) => decodeContextImages(encodedImages, 0, relatedFiles));
                     frameData.activeContextRequest.then((images) => {
                         const size = Object.values(images)
-                            .reduce((acc, image) => acc + image.width * image.height * 4, 0);
+                            .reduce((acc, image) => {
+                                if (image instanceof ImageBitmap) {
+                                    return acc + image.width * image.height * 4;
+                                }
+                                return acc + image.size;
+                            }, 0);
                         const totalSize = Object.values(frameData.contextCache)
                             .reduce((acc, item) => acc + item.size, 0);
                         if (totalSize > 512 * 1024 * 1024) {
@@ -1030,7 +1037,9 @@ export function clear(jobID: number): void {
         frameDataCache[jobID].provider.close();
         for (const contextImagesByFrame of Object.values(frameDataCache[jobID].contextCache)) {
             for (const image of Object.values(contextImagesByFrame.data)) {
-                image.close();
+                if (image instanceof ImageBitmap) {
+                    image.close();
+                }
             }
         }
 
